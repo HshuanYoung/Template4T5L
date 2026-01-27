@@ -674,20 +674,26 @@ void UartReadFrame(UART_TYPE *uart)
                 {
                     break;
                 }
-                #if R11_WIFI_ENABLED
-                UartR11UserWifiProtocol(uart, &frame[total_frame_len - i], one_frame_len);
-                #endif /* R11_WIFI_ENABLED */
                 #if sysBEAUTY_MODE_ENABLED
                 UartR11UserVideoProtocol(uart, &frame[total_frame_len - i], one_frame_len);
                 UartR11UserBeautyProtocol(uart, &frame[total_frame_len - i], one_frame_len);
+                #if R11_WIFI_ENABLED
+                UartR11UserWifiProtocol(uart, &frame[total_frame_len - i], one_frame_len);
+                #endif /* R11_WIFI_ENABLED */
                 #endif /* sysBEAUTY_MODE_ENABLED */
                 #if sysN5CAMERA_MODE_ENABLED
                 UartR11UserVideoProtocol(uart, &frame[total_frame_len - i], one_frame_len);
                 UartR11UserN5CameraProtocol(uart, &frame[total_frame_len - i], one_frame_len);
+                #if R11_WIFI_ENABLED
+                UartR11UserWifiProtocol(uart, &frame[total_frame_len - i], one_frame_len);
+                #endif /* R11_WIFI_ENABLED */
                 #endif /* sysN5CAMERA_MODE_ENABLED */
                 #if sysADVERTISE_MODE_ENABLED
                 UartR11UserVideoProtocol(uart, &frame[total_frame_len - i], one_frame_len);
                 UartR11UserAdvertiseProtocol(uart, &frame[total_frame_len - i], one_frame_len);
+                #if R11_WIFI_ENABLED
+                UartR11UserWifiProtocol(uart, &frame[total_frame_len - i], one_frame_len);
+                #endif /* R11_WIFI_ENABLED */
                 #endif /* sysADVERTISE_MODE_ENABLED */
                 i -= one_frame_len;
             }else if(frame[total_frame_len - i] == 0xaa && frame[total_frame_len - i + 1] == 0xCC)
