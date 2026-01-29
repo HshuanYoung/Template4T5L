@@ -1162,7 +1162,7 @@ static void R11ClearHairAnalyzeResult(void)
 		camera_magnifier.camera_num[i+1] = 0;
 	}
 	write_dgus_vp(analyzeSKIN_AREA_PERCENT_ADDR,(uint8_t*)&zero_value,1);
-	write_dgus_vp(analyzeHAIR_DENSE_ADDR,(uint8_t*)&zero_value,1);
+	write_dgus_vp(analyzeHAIR_DENSE_LEVEL_ADDR,(uint8_t*)&zero_value,1);
 	write_dgus_vp(analyzeHAIR_LEVEL_ADDR,(uint8_t*)&zero_value,1);
 	write_dgus_vp(analyzeSKIN_LEVEL_ADDR,(uint8_t*)&zero_value,1);
 }
@@ -1302,21 +1302,24 @@ static void R11HairAnalyzeCalcResult(void)
 		write_dgus_vp(COLOR_RECT_ADDR,color_rect_arr,13);
 	}
 	#endif /*HAIR_ANALYZE_LEVEL_ENABLED */
-	if(analyze.percent > 300)
+	analyze.percent = analyze.percent / 100;
+	if(analyze.percent > 30)
 	{
 		analyze.hair_analyze.hair_dense = 3;
-	}else if(analyze.percent > 100 && analyze.percent <= 300)
+	}else if(analyze.percent > 10 && analyze.percent <= 30)
 	{
 		analyze.hair_analyze.hair_dense = 2;
 	}else
 	{
 		analyze.hair_analyze.hair_dense = 1;
 	}
-	write_dgus_vp(analyzeHAIR_DENSE_ADDR,(uint8_t*)&analyze.hair_analyze.hair_dense,1);
-	for(i=0;i<3;i++)
+	write_dgus_vp(analyzeHAIR_DENSE_LEVEL_ADDR,(uint8_t*)&analyze.hair_analyze.hair_dense,1);
+	write_dgus_vp(analyzeHAIR_DENSE_PERCENT_ADDR,(uint8_t*)&analyze.percent,1);
+	for(i=0;i<2;i++)
 	{
 		T5lUartSendAnalyzeResult(analyzeRESULT_ADDR + i,1);
 	}
+	T5lUartSendAnalyzeResult(analyzeHAIR_DENSE_PERCENT_ADDR,1);
 }
 
 
@@ -1452,12 +1455,16 @@ static void R11AnalyzeTask(void)
 			write_param[0] = 0x00;
 			write_dgus_vp(analyzeWAITING_ADDR,(uint8_t*)&write_param[0],1);
 		}
-		if(analyze.res_done_flag == 1 && analyze_process == 100)
+		if(analyze.res_done_flag == 1)
 		{
 			/* 分析完成*/
 			R11HairAnalyzeCalcResult();
 			write_dgus_vp(analyzePROCESS_ADDR,(uint8_t*)&uint16_port_zero,1);
-			analyze_process = 0;
+			if(analyze_process != 100)
+			{
+				analyze_process = 100;
+				write_dgus_vp(analyzePROCESS_ADDR,(uint8_t*)&analyze_process,1);
+			}
 			start_cap_flag = 0;
 			start_analyze_flag = 0;
 			write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&uint16_port_zero,1);
@@ -2047,11 +2054,20 @@ void UartR11UserBeautyProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
 					analyze.res_done_flag = 1;
 				}else
 				{
-					write_param[0] = 1;
-					write_dgus_vp(analyzeFAIL_ADDR,(uint8_t*)&write_param[0],1);
-					write_param[0] = 0;
-					write_dgus_vp(analyzePROCESS_ADDR,(uint8_t*)&write_param[0],1);
-					write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&write_param[0],1);
+					
+					analyze.percent = (frame[6]<<8)|frame[7];
+					analyze.hair_analyze.red[0] = frame[8];
+					analyze.hair_analyze.green[0] = frame[9];
+					analyze.hair_analyze.blue[0] = frame[10];
+					analyze.hair_analyze.red[1] = frame[11];
+					analyze.hair_analyze.green[1] = frame[12];
+					analyze.hair_analyze.blue[1] = frame[13];
+					analyze.res_done_flag = 1;
+					// write_param[0] = 1;
+					// write_dgus_vp(analyzeFAIL_ADDR,(uint8_t*)&write_param[0],1);
+					// write_param[0] = 0;
+					// write_dgus_vp(analyzePROCESS_ADDR,(uint8_t*)&write_param[0],1);
+					// write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&write_param[0],1);
 				}
 				break;
 			/* 分成6个不同的部位*/

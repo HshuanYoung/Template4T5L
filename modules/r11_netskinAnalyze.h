@@ -104,7 +104,8 @@
 #define analyzeRESULT_ADDR 		0x3500
 #define analyzeHAIR_RGB_ADDR	0x3500
 #define analyzeSKIN_RGB_ADDR    0x3501
-#define analyzeHAIR_DENSE_ADDR  0x3502
+#define analyzeHAIR_DENSE_LEVEL_ADDR  0x3502
+#define analyzeHAIR_DENSE_PERCENT_ADDR  0x3503
 
 #define analyzePROCESS_ADDR     0x3504
 #define analyzeWAITING_ADDR     0x3506
