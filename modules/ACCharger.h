@@ -1,4 +1,5 @@
 #include "t5los8051.h"
+#include "sys.h"
 
 #define stateCHARGE_STANDBY              0
 #define stateCHARGE_PROCESS              3

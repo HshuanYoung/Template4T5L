@@ -1,4 +1,5 @@
 #include "ACCharger.h"
+#include "string.h"
 
 uint16_t g_charge_state = stateCHARGE_STANDBY;
 ACChargingPara g_ac_charging_para;
@@ -7,6 +8,11 @@ NetworkInfo g_network_info;
 LastChargeData g_last_charge_data;
 ConnectPilotPara g_connect_pilot_para;
 
+
+static void ACChargeRelayCtrl(uint8_t enable_type)
+{
+	
+}
 
 /**
  * 开始充电
@@ -31,13 +37,14 @@ static void ACChargeStart(uint8_t startup_type)
 }
 
 
+
 /**
  * 结束充电
  * 触发方式：屏幕点击结束充电，刷卡触发，app触发，充电时异常状态触发
  */
 static void ACChargeStop()
 {
-    if(g_ac_charger_network_info.network_isconnect)
+    if(g_network_info.network_isconnect)
     {
        
     }else

@@ -29,6 +29,9 @@
 #include "r11_advertise.h"
 #endif /* sysADVERTISE_MODE_ENABLED */
 
+#include "ACCharger.h"
+
+
 void main(void)
 {
 
