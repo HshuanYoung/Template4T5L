@@ -1302,7 +1302,7 @@ static void R11HairAnalyzeCalcResult(void)
 		write_dgus_vp(COLOR_RECT_ADDR,color_rect_arr,13);
 	}
 	#endif /*HAIR_ANALYZE_LEVEL_ENABLED */
-	analyze.percent = analyze.percent / 100;
+	analyze.percent = analyze.percent / 10;
 	if(analyze.percent > 30)
 	{
 		analyze.hair_analyze.hair_dense = 3;
