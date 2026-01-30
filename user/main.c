@@ -50,6 +50,8 @@ void main(void)
 
   // SysTaskAdd(1, COUNT_TASK_INTERVAL, CountTask);
 
+  SysTaskAdd(1, ACCHARGE_TASK_INTERVAL, ACChargerTask);
+
   SysTaskAdd(2, UART_TASK_INTERVAL, UartProtocalHandleTask);
 
 

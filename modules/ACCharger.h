@@ -33,6 +33,9 @@
 #define CHARGE_STARTUP_BY_SCREEN          3
 
 
+#define ACCHARGE_SCAN_ADDRESS            0x0600
+#define ACCHARGE_TASK_INTERVAL            100
+
 /**
  * 充电参数结构体
  */
@@ -50,6 +53,20 @@ typedef struct
     uint8_t is_charge;
 
 }ACChargingPara;
+
+
+typedef struct
+{
+    float rated_current;
+    float over_current_ratio;
+    float recovery_over_current_ratio;
+    float rated_voltage;
+    float over_voltage_ratio;
+    float recovery_over_voltage_ratio;
+    float under_voltage_ratio;
+    float recovery_under_voltage_ratio;
+    uint16_t alert_duration;
+}ACChargerLimitPara;
 
 typedef struct 
 {
@@ -84,6 +101,13 @@ typedef struct
     uint32_t charge_time;
 }LastChargeData;
 
+typedef enum 
+{
+    CHARGE_SELF_CHECK,
+    CHARGE_CONNECT_PILOT,
+    CHARGE_START
+}ACChargeStepEnum;
+
 
 extern ACChargingPara g_ac_charging_para;
 extern ACChargerInfo g_ac_charger_info;
@@ -91,3 +115,6 @@ extern NetworkInfo g_network_info;
 extern LastChargeData g_last_charge_data;
 extern ConnectPilotPara g_connect_pilot_para;
 extern uint16_t g_charge_state;
+extern ACChargerLimitPara g_ac_charger_limit_para;
+
+void ACChargerTask(void);
