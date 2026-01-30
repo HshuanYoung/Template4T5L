@@ -225,6 +225,7 @@ void T5lSendUartDataToR11( uint8_t cmd, uint8_t *buf)
             r11_buf[3] = buf[3];
             r11_buf[4] = buf[4];
             r11_buf[5] = buf[5];
+            r11_buf[6] = buf[6];
             break;
         #if sysADVERTISE_MODE_ENABLED
         /** 适用于广告屏，用来进行三元码的注册和websocket连接设置 */
@@ -901,18 +902,20 @@ void R11WifiValueHandle(uint16_t dgus_value)
         r11_send_buf[0] = 0xaa;
         r11_send_buf[1] = 0x55;
         r11_send_buf[2] = 0x00;
-        r11_send_buf[3] = cmdCHECK_STATUS_NET;
-        r11_send_buf[4] = 0x01;
-        r11_send_buf[5] = (uint8_t)(dgus_value - keyCHECK_STATUS_WIFI + 1);
+        r11_send_buf[3] = 0x03;
+        r11_send_buf[4] = cmdCHECK_STATUS_NET;
+        r11_send_buf[5] = 0x01;
+        r11_send_buf[6] = (uint8_t)(dgus_value - keyCHECK_STATUS_WIFI + 1);
         T5lSendUartDataToR11(cmdCHECK_STATUS_NET, r11_send_buf);
     }else if(dgus_value == keyCHECK_STATUS_exUDISK || dgus_value == keyCHECK_STATUS_SDCARD)
     {
         r11_send_buf[0] = 0xaa;
         r11_send_buf[1] = 0x55;
         r11_send_buf[2] = 0x00;
-        r11_send_buf[3] = cmdCHECK_STATUS_DEVICE;
-        r11_send_buf[4] = 0x01;
-        r11_send_buf[5] = (uint8_t)(dgus_value - keyCHECK_STATUS_exUDISK + 1);
+        r11_send_buf[3] = 0x03;
+        r11_send_buf[4] = cmdCHECK_STATUS_DEVICE;
+        r11_send_buf[5] = 0x01;
+        r11_send_buf[6] = (uint8_t)(dgus_value - keyCHECK_STATUS_exUDISK + 1);
         T5lSendUartDataToR11(cmdCHECK_STATUS_DEVICE, r11_send_buf);
     }
 }
@@ -1030,8 +1033,12 @@ void UartR11UserVideoProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
             write_dgus_vp(PLAY_STATUS_ADDR, (uint8_t*)&write_param[0], 1);
             break;
         case cmdCHECK_STATUS_NET:
+<<<<<<< HEAD
             write_dgus_vp(CHECK_NET_STATUS_ADDR,&frame[5],1);
             break;
+=======
+            write_dgus_vp(0x570,(uint8_t*))
+>>>>>>> 791e3b4 (修改检查4g和wifi网络状态bug)
         default:
             break;
         }
