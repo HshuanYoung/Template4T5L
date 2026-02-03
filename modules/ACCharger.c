@@ -8,6 +8,7 @@ NetworkInfo g_network_info;
 LastChargeData g_last_charge_data;
 ConnectPilotPara g_connect_pilot_para;
 ACChargerLimitPara g_ac_charger_limit_para;
+sbit jerk_status_io = P3^1;
 
 static void ACChargeRelayCtrl(uint8_t enable_type)
 {
@@ -71,6 +72,12 @@ static void ACChargeStop()
 }
 
 
+static void ACChargeAbnormalStop()
+{
+
+}
+
+
 /**
  * 恢复自动充电
  * 触发方式：过压，欠压，电表通讯异常可以自动恢复充电
@@ -98,9 +105,16 @@ static void ACChargeAutoRecovery()
 
 void ACChargerStateCheckTask(void)
 {
+    static uint16_t state_delay_count = 0;
+    static uint16_t old_charge_state = 0xff;
     switch(g_charge_state)
     {
         case stateCHARGE_STANDBY:
+            if(old_charge_state != g_charge_state)
+            {
+                old_charge_state = g_charge_state;
+                SwitchPageById(CHARGE_STANDBY_PAGE);
+            }
             if(g_ac_charger_info.jerk_flag)
             {
                 g_charge_state = errorCHARGE_JERK;
@@ -153,7 +167,17 @@ void ACChargerStateCheckTask(void)
                 g_ac_charging_para.stop_result = errorCHARGE_LEAKAGE;
             }
         break;
-
+        case stateCHARGE_ABREND_DELAY:
+            state_delay_count++;
+            if(state_delay_count > 10)
+            {
+                if(g_connect_pilot_para.pwm_enable == ON)
+                {
+                    g_connect_pilot_para.pwm_enable = OFF;
+                }
+                g_charge_state = stateCHARGE_STANDBY;
+            }
+        break;
     }
 
 }
@@ -219,6 +243,7 @@ static void OverCurrentDeal()
      */
     if(g_ac_charging_para.current > (g_ac_charger_limit_para.rated_current * g_ac_charger_limit_para.over_current_ratio))
     {
+        over_current_recovery_delay_count = 0;
         over_current_delay_count++;
         if(over_current_delay_count >= g_ac_charger_limit_para.alert_duration)
         {
@@ -244,6 +269,7 @@ static void UnderVoltageDeal()
      */
     if(g_ac_charging_para.voltage < (g_ac_charger_limit_para.rated_voltage * g_ac_charger_limit_para.under_voltage_ratio))
     {
+        under_voltage_recovery_delay_count = 0;
         under_voltage_delay_count++;
         if(under_voltage_delay_count >= g_ac_charger_limit_para.alert_duration)
         {
@@ -268,6 +294,7 @@ static void OverVoltageDeal()
      */
     if(g_ac_charging_para.voltage > (g_ac_charger_limit_para.rated_voltage * g_ac_charger_limit_para.over_voltage_ratio))
     {
+        over_voltage_recovery_delay_count = 0;
         over_voltage_delay_count++;
         if(over_voltage_delay_count >= g_ac_charger_limit_para.alert_duration)
         {
@@ -287,19 +314,100 @@ static void OverVoltageDeal()
 
 static void LeakageDeal()
 {
-
+    static uint16_t leakage_delay_count = 0,leakage_delay_recovery_count = 0;
+    if(g_ac_charging_para.leakage_value > g_ac_charger_limit_para.leakage_current_threshold)
+    {
+        leakage_delay_recovery_count = 0;
+        leakage_delay_count++;
+        if(leakage_delay_count >= g_ac_charger_limit_para.alert_duration)
+        {
+            g_ac_charger_info.leakage_flag = ON;
+        }
+    }else
+    {
+        leakage_delay_count = 0;
+        leakage_delay_recovery_count++;
+        if(leakage_delay_recovery_count >= g_ac_charger_limit_para.alert_duration)
+        {
+            g_ac_charger_info.leakage_flag = OFF;
+        }
+    }
 }
 
 
 static void LowCurrentAutoStopDeal()
 {
+    static uint16_t low_current_delay_count = 0;
+    if(g_charge_state == stateCHARGE_PROCESS)
+    {
+        if(g_ac_charging_para.current < g_ac_charger_limit_para.min_current_threshold)
+        {
+            low_current_delay_count++;
+            if(low_current_delay_count >= g_ac_charger_limit_para.alert_duration * 30)
+            {
+                ACChargeStop();
+                g_ac_charging_para.stop_result = warningCHARGE_FULLCOMPLETED;
+                low_current_delay_count = 0;
+            }
+        }else
+        {
+            low_current_delay_count = 0;
 
+        }
+    }
 }
 
 
-static void GunConnectDeal()
+static void GunAndVehicleConnectDeal()
 {
+    static uint16_t gun_connect_delay_count = 0,vehicle_connect_delay_count = 0;
+    if(g_ac_charging_para.connect_confirm_value < g_ac_charger_limit_para.gun_connect_threshold)
+    {
+        if(gun_connect_delay_count >= DEBOUNCE_COUNT)
+        {
+            if(g_ac_charger_info.gun_connect_flag == OFF)
+            {
+                g_ac_charger_info.gun_connect_flag = ON;
+            }
+        }else{
+            gun_connect_delay_count++;
+        }
+    }else
+    {
+        if(gun_connect_delay_count > 0)
+        {
+            gun_connect_delay_count--;
+        }else{
+            if(g_ac_charger_info.gun_connect_flag == ON)
+            {
+                g_ac_charger_info.gun_connect_flag = OFF;
+            }
+        }
+    }
 
+    if(g_ac_charging_para.connect_confirm_value < g_ac_charger_limit_para.vehicle_connect_threshold)
+    {
+        if(vehicle_connect_delay_count >= DEBOUNCE_COUNT)
+        {
+            if(g_ac_charger_info.vehicle_connect_flag == OFF)
+            {
+                g_ac_charger_info.vehicle_connect_flag = ON;
+            }
+        }else{
+            vehicle_connect_delay_count++;
+        }
+    }else
+    {
+        if(vehicle_connect_delay_count > 0)
+        {
+            vehicle_connect_delay_count--;
+        }else{
+            if(g_ac_charger_info.vehicle_connect_flag == ON)
+            {
+                g_ac_charger_info.vehicle_connect_flag = OFF;
+            }
+        }
+    }
 }
 
 
@@ -310,7 +418,89 @@ static void LowBalanceDeal()
 
 static void CPSignalMonitorDeal()
 {
+    static uint16_t cp_signal_charging_count = 0,cp_signal_end_count = 0;
 
+    /*充电过程中拔枪或者断电 */
+    if(g_ac_charger_info.gun_connect_flag == ON && g_charge_state == stateCHARGE_PROCESS)
+    {
+        if(g_ac_charger_info.vehicle_connect_flag == OFF)
+        {
+            /*电流过小停止或者等待3s后停止*/
+            if(g_ac_charging_para.current < g_ac_charger_limit_para.min_current_threshold)
+            {
+                ACChargeStop();
+                g_ac_charging_para.stop_result = warningCHARGE_FULLCOMPLETED;
+            }else{
+                cp_signal_charging_count++;
+                if(cp_signal_charging_count >= 300)
+                {
+                    ACChargeStop();
+                    g_ac_charging_para.stop_result = warningCHARGE_FULLCOMPLETED;
+                }
+            }
+        }else{
+            cp_signal_charging_count = 0;
+        }
+    }else if(g_ac_charger_info.gun_connect_flag == OFF && g_charge_state == stateCHARGE_PROCESS)
+    {
+        ACChargeStop();
+        g_ac_charging_para.stop_result = errorVEHICLE_GUNCONNECT;
+    }
+
+    /* 充电完成后停止CP信号*/
+    if(g_charge_state == stateCHARGE_CARDSETTLE ||g_charge_state == stateCHARGE_SCREENSETTLE)
+    {
+        if(g_ac_charger_info.gun_connect_flag == ON)
+        {
+            if(g_connect_pilot_para.pwm_enable == ON)
+            {
+                if(g_ac_charging_para.stop_result == errorCHARGE_JERK || g_ac_charging_para.stop_result == errorCHARGE_LEAKAGE || 0)
+                {
+                    g_connect_pilot_para.pwm_enable = OFF;
+                }
+            }
+            if(g_ac_charger_info.vehicle_connect_flag == ON && g_connect_pilot_para.pwm_enable == ON)
+            {
+                ACChargeAbnormalStop();
+            }
+        }else{
+            cp_signal_end_count++;
+            if(cp_signal_end_count >= 50)
+            {
+                cp_signal_end_count = 0;
+                g_charge_state = stateCHARGE_ABREND_DELAY;
+            }
+        }
+    }
+}
+
+
+static void ChargeJerkDeal()
+{
+    static uint16_t jerk_delay_count = 0;
+    if(jerk_status_io == ON)
+    {
+        if(jerk_delay_count >= DEBOUNCE_COUNT)
+        {
+            if(g_ac_charger_info.jerk_flag == OFF)
+            {
+                g_ac_charger_info.jerk_flag = ON;
+            }
+        }else{
+            jerk_delay_count++;
+        }
+    }else 
+    {
+        if(jerk_delay_count > 0)
+        {
+            jerk_delay_count--;
+        }else{
+            if(g_ac_charger_info.jerk_flag == ON)
+            {
+                g_ac_charger_info.jerk_flag = OFF;
+            }
+        }
+    }
 }
 
 
@@ -322,9 +512,10 @@ void ACChargerBackGroundTask()
      * 3.过压处理
      * 4.漏电处理
      * 5.电流低于指定值时自动停止处理
-     * 6.枪连接处理
+     * 6.枪和车辆连接处理
      * 7.余额不足处理
      * 8.cp信号监测
+     * 9.急停处理
      */
 
     OverCurrentDeal();
@@ -332,9 +523,10 @@ void ACChargerBackGroundTask()
     OverVoltageDeal();
     LeakageDeal();
     LowCurrentAutoStopDeal();
-    GunConnectDeal();
+    GunAndVehicleConnectDeal();
     LowBalanceDeal();
     CPSignalMonitorDeal();
+    ChargeJerkDeal();
 }
 
 

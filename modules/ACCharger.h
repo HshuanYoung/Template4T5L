@@ -24,6 +24,7 @@
 #define errorVEHICLE_ABNORMAL            23
 #define errorCARD_NOBINDING              24
 #define errorCARD_STARTUPDIFF            25
+#define warningCHARGE_FULLCOMPLETED          26
 
 
 #define ON    1
@@ -33,45 +34,57 @@
 #define CHARGE_STARTUP_BY_SCREEN          3
 
 
+#define DEBOUNCE_COUNT                     10
+
 #define ACCHARGE_SCAN_ADDRESS            0x0600
 #define ACCHARGE_TASK_INTERVAL            100
+
+
+/*页面id宏定义*/
+#define CHARGE_STANDBY_PAGE                1
 
 /**
  * 充电参数结构体
  */
 typedef struct
 {
-    uint16_t voltage;
-    uint16_t current;
-    uint16_t power;
-    uint16_t stop_result;
-    uint8_t startup_type;
-    uint8_t card_num[32];
-    float startup_watthour;
-    float now_watthour;
-    uint32_t charge_time;
-    uint8_t is_charge;
+    uint16_t voltage;              /* 当前电压值，通过HLW芯片串口获取*/
+    uint16_t current;              /* 当前电流值，通过HLW芯片串口获取*/
+    uint16_t power;                /* 当前功率值，通过HLW芯片串口获取*/
+    uint32_t leakage_value;         /* 漏电值，ADC获取*/
+    uint32_t connect_confirm_value;/* CC信号值，ADC获取，判断不同的电阻*/
+    uint16_t stop_result;         /* 停止充电原因*/
+    uint8_t startup_type;         /* 启动充电的方式，屏幕点击触发，刷卡触发，APP触发*/
+    uint8_t card_num[32];         /* 卡号*/
+    float startup_watthour;       /* 开始时的电量*/
+    float now_watthour;           /* 当前电量*/
+    uint32_t charge_time;         /* 已充电时间*/
+    uint8_t is_charge;           /* 充电状态，0：未充电，1：充电中*/
 
 }ACChargingPara;
 
 
 typedef struct
 {
-    float rated_current;
-    float over_current_ratio;
-    float recovery_over_current_ratio;
-    float rated_voltage;
-    float over_voltage_ratio;
-    float recovery_over_voltage_ratio;
-    float under_voltage_ratio;
-    float recovery_under_voltage_ratio;
-    uint16_t alert_duration;
+    float rated_current;                   /*额定电流，初始化的时候进行设置，需要断电保存*/
+    float over_current_ratio;              /*过流检测比值，过流=额定电流*比值，初始化的时候进行设置，需要断电保存*/
+    float recovery_over_current_ratio;     /*过流检测自动恢复比值，过流自动恢复=额定电流*比值，初始化的时候进行设置，需要断电保存*/
+    float rated_voltage;                    /*额定电压，初始化的时候进行设置，需要断电保存*/
+    float over_voltage_ratio;               /*过压检测比值，过压=额定电压*比值，初始化的时候进行设置，需要断电保存*/
+    float recovery_over_voltage_ratio;      /*过压检测自动恢复比值，过压自动恢复=额定电压*比值，初始化的时候进行设置，需要断电保存*/
+    float under_voltage_ratio;              /*欠压检测比值，欠压=额定电压*比值，初始化的时候进行设置，需要断电保存*/
+    float recovery_under_voltage_ratio;     /*欠压检测自动恢复比值，欠压自动恢复=额定电压*比值，初始化的时候进行设置，需要断电保存*/
+    uint16_t leakage_current_threshold;     /*漏电检测阈值，用来判断是否漏电，初始化的时候进行设置，需要断电保存*/
+    float min_current_threshold;             /*最低电流阈值，用来判断是否充满，初始化的时候进行设置，需要断电保存*/
+    uint16_t gun_connect_threshold;         /*枪连接检测阈值，初始化的时候进行设置，需要断电保存*/
+    uint16_t vehicle_connect_threshold;     /*车辆连接检测阈值，初始化的时候进行设置，需要断电保存*/
+    uint16_t alert_duration;                 /*告警持续时间，初始化的时候进行设置，需要断电保存*/
 }ACChargerLimitPara;
 
 typedef struct 
 {
-    uint8_t pwm_enable;
-    uint16_t pwm_duty;
+    uint8_t pwm_enable;                      /*CP信号pwm输出标志，0不输出，保持12V高电平，1输出*/
+    uint16_t pwm_duty;                       /*CP信号输出占空比，10%-85%*/
 }ConnectPilotPara;
 
 
@@ -80,25 +93,27 @@ typedef struct
  */
 typedef struct
 {
-    uint8_t jerk_flag;
-    uint8_t overcurrent_flag;
-    uint8_t overvoltage_flag;
-    uint8_t undervoltage_flag;
-    uint8_t leakage_flag;
-    uint8_t meter_abnormal_flag;
+    uint8_t jerk_flag;                       /*急停标志*/
+    uint8_t overcurrent_flag;                /*过流标志*/
+    uint8_t overvoltage_flag;                /*过压标志*/
+    uint8_t undervoltage_flag;               /*欠压标志*/
+    uint8_t leakage_flag;                    /*漏电标志*/
+    uint8_t meter_abnormal_flag;             /*电表异常标志*/
+    uint8_t gun_connect_flag;                /*枪连接标志*/
+    uint8_t vehicle_connect_flag;            /*车辆连接标志*/
 }ACChargerInfo;
 
 typedef struct 
 {
-    uint8_t network_isconnect;
+    uint8_t network_isconnect;              /*网络是否连接*/
 }NetworkInfo;
 
 typedef struct 
 {
-    uint8_t startup_type;
-    uint8_t card_num[32];
-    float used_watthour;
-    uint32_t charge_time;
+    uint8_t startup_type;                  /*上一次记录启动方式，用于自动恢复充电*/
+    uint8_t card_num[32];                  /*上一次记录卡号，用于自动恢复充电*/
+    float used_watthour;                   /*上一次记录已使用电量*/
+    uint32_t charge_time;                  /*上一次记录充电时间*/
 }LastChargeData;
 
 typedef enum 
