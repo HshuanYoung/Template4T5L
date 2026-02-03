@@ -18,6 +18,7 @@
  * @note BCD格式：高4位表示十位，低4位表示个位
  */
 #define rtcBCD_2_HEX(bcd) ((bcd >> 4) * 10 + (bcd & 0x0F))
+#define rtcHEX_2_BCD(hex) (((hex / 10) << 4) | (hex % 10))
 
 /**
  * @brief 计算指定日期的星期值
@@ -44,7 +45,7 @@ static uint8_t RtcCalcWeek(uint8_t *prtc_set)
         month += 12;
         year--;
     }
-    week = (day + (13 * (month + 1)) / 5 + year + (year / 4) - (year / 100) + (year / 400)) % 7;
+    week = (day + (13 * (month + 1)) / 5 + year + (year / 4) - (year / 100) + (year / 400)) % 7 + 1;
     return week;
 }
 
@@ -211,7 +212,7 @@ void RtcWriteTime(void)
         write_param[7] = 0;
         for(i=0;i<8;i++)
         {
-            write_param[i] = rtcBCD_2_HEX(write_param[i]);
+            write_param[i] = rtcHEX_2_BCD(write_param[i]);
         }
         RtcSetTime(write_param);
         memset(read_param, 0, 2);

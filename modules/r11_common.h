@@ -84,6 +84,7 @@ extern VIDEO_INIT_PROCESS video_init_process;
 #define MAX_MP3_NAME_LEN  		32
 #define MAX_VOLUME              40
 #define MAX_WIFI_NAME_LEN 		32
+#define CHECK_NET_STATUS_ADDR       0x0570
 #define MP4_FILENAME_VP_LIST1       0x0610
 #define MP4_FILENAME_VP_LIST2       0x0620
 #define MP4_FILENAME_VP_LIST3       0x0630
