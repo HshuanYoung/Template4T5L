@@ -1317,8 +1317,11 @@ static void R11HairAnalyzeCalcResult(void)
 	write_dgus_vp(analyzeHAIR_DENSE_PERCENT_ADDR,(uint8_t*)&analyze.percent,1);
 	for(i=0;i<2;i++)
 	{
+		/* 自动上传时*/
+		delay_ms(5);
 		T5lUartSendAnalyzeResult(analyzeRESULT_ADDR + i,1);
 	}
+	delay_ms(5);
 	T5lUartSendAnalyzeResult(analyzeHAIR_DENSE_PERCENT_ADDR,1);
 }
 
@@ -1978,10 +1981,17 @@ void UartR11UserBeautyProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
 					#if R11_HAIR_ANALYZE_ENABLED
 					write_param[0] = 0x0003;
 					write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&write_param[0],1);
+					/*进行一次按键上传*/
+					write_param[0] = (0x5a<<8)|(R11_ANALYZE_ADDR & 0x0f);
+					write_param[1] = R11_ANALYZE_ADDR << 8 | 0x01;
+					write_dgus_vp(sysDGUS_AUTO_UPLOAD_VP_ADDR,(uint8_t*)&write_param[0],2);
 					#else /* R11_HAIR_ANALYZE_ENABLED == 1 */
 					/** 截图一次 */
 					write_param[0] = 0xa502;
 					write_dgus_vp(R11_SCAN_ADDRESS,(uint8_t*)&write_param[0],1);
+					write_param[0] = (0x5a<<8)|(R11_SCAN_ADDRESS & 0x0f);
+					write_param[1] = R11_SCAN_ADDRESS << 8 | 0x01;
+					write_dgus_vp(sysDGUS_AUTO_UPLOAD_VP_ADDR,(uint8_t*)&write_param[0],2);
 					#endif /* R11_HAIR_ANALYZE_ENABLED == 0 */
 				}
 				break;
