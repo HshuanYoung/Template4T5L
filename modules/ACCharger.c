@@ -9,6 +9,9 @@ LastChargeData g_last_charge_data;
 ConnectPilotPara g_connect_pilot_para;
 ACChargerLimitPara g_ac_charger_limit_para;
 sbit jerk_status_io = P3^1;
+ACChargeStepEnum charge_step = CHARGE_SELF_CHECK;
+
+
 
 static void ACChargeRelayCtrl(uint8_t enable_type)
 {
@@ -21,6 +24,8 @@ static void ACChargeRelayCtrl(uint8_t enable_type)
  */
 static void ACChargeStart(uint8_t startup_type)
 {
+    uint8_t send_data[10]={0x5a,0xaa,0x00,0x04,0x04,0x01};
+    uint16_t crc16 = 0;
     /*1.充电状态标记*/
     g_ac_charging_para.is_charge = ON;
     /*2.记录起始电量*/
@@ -35,6 +40,11 @@ static void ACChargeStart(uint8_t startup_type)
     g_connect_pilot_para.pwm_enable = ON;
     /*7.停止原因清零*/
     g_ac_charging_para.stop_result = 0;
+    /*8.发送开始充电的串口命令*/
+    crc16 = crc_16 (&send_data[4], 2);
+    send_data[6] = crc16 >> 8;
+    send_data[7] = (uint8_t)(crc16 & 0x00ff);
+    UartSendData(&Uart2, send_data, 8);
 }
 
 
@@ -45,6 +55,8 @@ static void ACChargeStart(uint8_t startup_type)
  */
 static void ACChargeStop()
 {
+    uint8_t send_data[10]={0x5a,0xaa,0x00,0x04,0x04,0x00};
+    uint16_t crc16 = 0;
     if(g_network_info.network_isconnect)
     {
        
@@ -68,6 +80,11 @@ static void ACChargeStop()
         ACChargeRelayCtrl(OFF);
         /*4.充电状态标记清零*/
         g_ac_charging_para.is_charge = OFF;
+        /*5.发送停止充电的串口命令*/
+        crc16 = crc_16 (&send_data[4], 2);
+        send_data[6] = crc16 >> 8;
+        send_data[7] = (uint8_t)(crc16 & 0x00ff);
+        UartSendData(&Uart2, send_data, 8);
     }
 }
 
@@ -183,6 +200,125 @@ void ACChargerStateCheckTask(void)
 }
 
 
+
+/** 20260205更新：只进行参数的显示 */
+void ACChargerKeyHandleTask()
+{
+    const uint16_t uint16_port_zero = 0;
+    uint16_t dgus_value;
+    #if sysDGUS_AUTO_UPLOAD_ENABLED || uartTA_PROTOCOL_ENABLED
+    DgusAutoUpload();
+    #endif /* sysDGUS_AUTO_UPLOAD_ENABLED ||uartTA_PROTOCOL_ENABLED */
+
+    read_dgus_vp(ACCHARGE_SCAN_ADDRESS, (uint8_t *)&dgus_value, 1);
+    if(dgus_value == 0xaa01)
+    {
+        SwitchPageById(CHARGE_SELF_CHECK_PAGE);
+        ACChargeStart(CHARGE_STARTUP_BY_SCREEN);
+        write_dgus_vp(ACCHARGE_SCAN_ADDRESS, (uint8_t *)&uint16_port_zero, 1);
+    }else if(dgus_value == 0xaa02)
+    {
+        SwitchPageById(CHARGE_COMPLETED_PAGE);
+        ACChargeStop();
+        write_dgus_vp(ACCHARGE_SCAN_ADDRESS, (uint8_t *)&uint16_port_zero, 1);
+    }
+}
+
+
+void UartACChargeUserProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
+{
+    uint16_t write_param[10],crc16;
+    uint8_t send_data[10]={0x5a,0xaa,0x00,0x04,0x02,0x00};
+    if(frame[0] == 0x5A && frame[1] == 0xAA)
+    {
+        UartSendData(&Uart2, frame, len);
+        if(len < 6 || len < ((frame[2]<<8|frame[3])+4))
+        {
+            return;
+        }
+        if((frame[len-1]<<8 |frame[len-2]) != crc_16(&frame[4], len-6))
+        {
+            return;
+        }else{
+            len -= 2;
+        }
+        UartSendData(&Uart2, frame, len);
+        switch (frame[4])
+        {
+        case cmdCHARGE_PARA_GET:
+            write_param[0] = frame[4+8];
+            write_param[1] = frame[4+9];
+            write_param[2] = frame[4+10];
+            write_param[3] = frame[4+11];
+            write_dgus_vp(CHARGE_PILE_PARA_ADDR,&frame[5],4);
+            write_dgus_vp(CHARGE_GUN_QUANTITY_ADDR,(uint8_t*)&write_param[0],4);
+            break;
+        case cmdCHARGE_VOLTAGE_GET:
+            write_param[0] = frame[5];
+            write_dgus_vp(CHARGE_GUN_NUM_ADDR,(uint8_t*)&write_param[0],1);
+            write_dgus_vp(CHARGE_VOLTAGE_ADDR,&frame[6],4);
+            write_param[0] = frame[14];
+            write_param[1] = frame[15];
+            write_param[2] = frame[16];
+            write_dgus_vp(CHARGE_GUNCONNECT_STA_ADDR,(uint8_t*)&write_param[0],3);
+            if(frame[14] == 0x00 && g_charge_state == stateCHARGE_PROCESS)
+            {
+                SwitchPageById(CHARGE_GUN_UNCONNECT_PAGE);
+            }else if(frame[14] == 0x00 && g_charge_state == stateCHARGE_STANDBY)
+            {
+
+            }else if(frame[14] == 0x01 && g_charge_state == stateCHARGE_STANDBY)
+            {
+                SwitchPageById(CHARGE_STANDBY_PAGE);
+            }else if(frame[14] == 0x00 && g_charge_state == stateCHARGE_STANDBY)
+            {
+                SwitchPageById(CHARGE_NOGUN_PAGE);
+            }
+            if(frame[15] != 0x00 && (g_charge_state == stateCHARGE_STANDBY|| g_charge_state == stateCHARGE_PROCESS) && frame[16] == 0x02)
+            {
+                if(frame[15] == 0x01)
+                {
+                    SwitchPageById(CHARGE_ABNORMAL_PAGE);
+                    g_charge_state = errorCHARGE_OVERVOLTAGE;
+                }else if(frame[15] == 0x02)
+                {
+                    SwitchPageById(CHARGE_ABNORMAL_PAGE);
+                    g_charge_state = errorCHARGE_OVERCURRENT;
+                }else if(frame[15] == 0x03)
+                {
+                    SwitchPageById(CHARGE_ABNORMAL_PAGE);
+                    g_charge_state = errorCHARGE_LEAKAGE;
+                }else if(frame[15] == 0x04)
+                {
+                    SwitchPageById(CHARGE_ABNORMAL_PAGE);
+                    g_charge_state = errorVEHICLE_ABNORMAL;
+                }
+            }else if(frame[15] == 0x00 && frame[16] == 0x01 && g_charge_state == stateCHARGE_STANDBY)
+            {
+                SwitchPageById(CHARGE_CHARGING_PAGE);
+                g_charge_state = stateCHARGE_PROCESS;
+                /*发送查询桩号的命令*/
+                crc16 = crc_16 (&send_data[4], 2);
+                send_data[6] = crc16 >> 8;
+                send_data[7] = (uint8_t)(crc16 & 0x00ff);
+                UartSendData(&Uart2, send_data, 8);
+            }else if(frame[15] == 0x00 && frame[16] == 0x00 && g_charge_state == stateCHARGE_PROCESS)
+            {
+                SwitchPageById(CHARGE_STANDBY_PAGE);
+                g_charge_state = stateCHARGE_STANDBY;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+
+
+
+
+#if 0
 /* 100ms定时器任务 */
 void ACChargerKeyHandleTask()
 {
@@ -207,6 +343,7 @@ void ACChargerKeyHandleTask()
             if(self_check_delay_count == 2)
             {
                 /* 跳转到自检页面*/
+                SwitchPageById(CHARGE_SELF_CHECK_PAGE);
             }
             if(self_check_delay_count >= 50)
             {
@@ -233,7 +370,7 @@ void ACChargerKeyHandleTask()
         }
     }
 }
-
+#endif
 
 static void OverCurrentDeal()
 {
@@ -532,7 +669,7 @@ void ACChargerBackGroundTask()
 
 void ACChargerTask(void)
 {
-    ACChargerBackGroundTask();
+    // ACChargerBackGroundTask();
     ACChargerKeyHandleTask();
-    ACChargerStateCheckTask();
+    // ACChargerStateCheckTask();
 }

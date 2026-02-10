@@ -1,5 +1,6 @@
 #include "t5los8051.h"
 #include "sys.h"
+#include "uart.h"
 
 #define stateCHARGE_STANDBY              0
 #define stateCHARGE_PROCESS              3
@@ -42,6 +43,35 @@
 
 /*页面id宏定义*/
 #define CHARGE_STANDBY_PAGE                1
+#define CHARGE_SELF_CHECK_PAGE             8
+#define CHARGE_CHARGING_PAGE               3
+#define CHARGE_ABNORMAL_PAGE               6
+#define CHARGE_COMPLETED_PAGE              4
+#define CHARGE_NOGUN_PAGE                  0
+#define CHARGE_GUN_UNCONNECT_PAGE          7
+
+
+#define cmdCHARGE_PARA_GET                   0x01
+#define cmdCHARGE_PARA_SEND                  0x02
+#define cmdCHARGE_VOLTAGE_GET                0x03
+#define cmdCHARGE_CONTROL_SEND               0x04
+
+#define CHARGE_PILE_PARA_ADDR               0x2000
+#define CHARGE_GUN_QUANTITY_ADDR            0x2004
+#define CHARGE_RATED_CURRENT_ADDR           0x2005
+#define CHARGE_PHASE_NUM_ADDR               0x2006
+#define CHARGE_RATED_VOLTAGE_ADDR           0x2007
+
+
+#define CHARGE_GUN_NUM_ADDR                 0x2010
+#define CHARGE_VOLTAGE_ADDR                 0x2011
+#define CHARGE_CURRENT_ADDR                 0x2012
+#define CHARGE_POWER_ADDR                   0x2013
+#define CHARGE_WATTHOUR_ADDR                0x2014
+#define CHARGE_GUNCONNECT_STA_ADDR          0x2015
+#define CHARGE_ERROR_CODE_ADDR              0x2016
+#define CAHRGE_RUNTIME_STA_ADDR             0x2017
+
 
 /**
  * 充电参数结构体
@@ -133,3 +163,4 @@ extern uint16_t g_charge_state;
 extern ACChargerLimitPara g_ac_charger_limit_para;
 
 void ACChargerTask(void);
+void UartACChargeUserProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len);

@@ -21,6 +21,8 @@
 #include "TA_protocal.h"
 #endif /* uartTA_PROTOCOL_ENABLED */
 
+#include "ACCharger.h"
+
 #if sysSET_FROM_LIB
 uint16_t sys_2k_ratio;
 uint32_t sysFOSC;
@@ -706,6 +708,15 @@ void UartReadFrame(UART_TYPE *uart)
                 #if sysBEAUTY_MODE_ENABLED
                 UartR11UserBeautyProtocol(uart, &frame[total_frame_len - i], one_frame_len);
                 #endif /* sysBEAUTY_MODE_ENABLED */
+                i -= one_frame_len;
+            }else if(frame[total_frame_len - i] == 0x5a && frame[total_frame_len - i + 1] == 0xaa)
+            {
+                one_frame_len = (frame[total_frame_len - i + 2] << 8 | frame[total_frame_len - i + 3]) + 4;
+                if(i < one_frame_len)
+                {
+                    break;
+                }
+                UartACChargeUserProtocol(uart, &frame[total_frame_len - i], one_frame_len);
                 i -= one_frame_len;
             }
             #if uartMODBUS_PROTOCOL_ENABLED
