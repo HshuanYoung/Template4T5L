@@ -496,6 +496,11 @@ static void MagnifierKeyHandle(uint16_t dgus_value)
 		 * */
 		if(camera_process_state == CAMERA_INSERT_CHECK)
 		{
+			#if cameraLIGHT_IO_CONTROL_ENABLED
+			cameraLIGHT_IO_CONTROL_NUM = 1;
+			cameraLIGHT_IO_CONTROL_NUM2 = 1;
+			#endif
+			delay_ms(10);
 			r11_send_buf[0] = 0xaa;
 			r11_send_buf[1] = 0x55;
 			r11_send_buf[2] = 0x00;
@@ -718,6 +723,11 @@ static void MagnifierKeyHandle(uint16_t dgus_value)
 			}else if(camera_process_state == CAMERA_INSERT_CHECK)
 			{
 				R11ClearPicture(0);
+				#if cameraLIGHT_IO_CONTROL_ENABLED
+				cameraLIGHT_IO_CONTROL_NUM = 0;
+				cameraLIGHT_IO_CONTROL_NUM2 = 0;
+				#endif
+				delay_ms(10);
 				if(page_st.menu_flag == 0x5a)
 				{
 					SwitchPageById((uint16_t)page_st.menu_page); 
@@ -2106,6 +2116,11 @@ void R11NetskinAnalyzeTask(void)
     if(r11_state.restart_flag == 1)
     {
         R11RestartInit();
+		#if cameraLIGHT_IO_CONTROL_ENABLED
+		P0MDOUT |= 0xc0;
+		cameraLIGHT_IO_CONTROL_NUM = 0;
+		cameraLIGHT_IO_CONTROL_NUM2 = 0;
+		#endif
 		video_init_process = VIDEO_PROCESS_UNINIT;
         r11_state.restart_flag = 2;  /* 重置重启标志 */
     }else if(r11_state.restart_flag == 2)

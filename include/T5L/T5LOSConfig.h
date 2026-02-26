@@ -92,7 +92,7 @@ typedef            long			int32_t;
  * @brief 端口驱动模式配置
  * @details 配置GPIO端口的驱动能力模式 00:4mA,01:8mA(推荐),10:16mA，11:32mA
  */
-#define sysPORTDRV_MODE              0x03            
+#define sysPORTDRV_MODE              0x01           
 
 /* 看门狗 */
 #define sysWDT_ON                    MUX_SEL |= 0x02

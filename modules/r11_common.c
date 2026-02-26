@@ -1029,12 +1029,9 @@ void UartR11UserVideoProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
             write_param[0] = (uint16_t)r11_player.state;
             write_dgus_vp(PLAY_STATUS_ADDR, (uint8_t*)&write_param[0], 1);
             break;
-<<<<<<< HEAD
-=======
         case cmdCHECK_STATUS_NET:
             write_dgus_vp(CHECK_NET_STATUS_ADDR,&frame[5],1);
             break;
->>>>>>> 8d5adb3 (修改rtc设置时间和星期显示不正确的问题)
         default:
             break;
         }
