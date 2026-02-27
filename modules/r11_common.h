@@ -7,7 +7,6 @@
  */
 #include "sys.h"
 #include "uart.h"
-#include "T5LOSConfig.h"
 #include "core_json.h"             
 
 #if sysBEAUTY_MODE_ENABLED ||sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED

@@ -324,7 +324,7 @@
               <MiscControls></MiscControls>
               <Define>_RX_TEST _USE_POLL _JPGTEST</Define>
               <Undefine></Undefine>
-              <IncludePath>..\include;..\include\T5L;..\source;..\user;..\modules;..\project</IncludePath>
+              <IncludePath>..\include;..\source;..\user;..\modules;..\project;..\include\T5L</IncludePath>
             </VariousControls>
           </C51>
           <Ax51>
@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define></Define>
               <Undefine></Undefine>
-              <IncludePath>..\include;..\source;..\user;..\include\T5L;..\modules;..\modules;..\project</IncludePath>
+              <IncludePath>..\include;..\source;..\user;..\modules;..\modules;..\project;..\include\T5L</IncludePath>
             </VariousControls>
           </Ax51>
           <Lx51>

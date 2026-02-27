@@ -9,7 +9,7 @@
 #ifndef SPI_H
 #define SPI_H
 
-#include "T5LOSConfig.h"
+#include "sys.h"
 
 #if spiSPI_ENABLED
 /* SPI引脚位操作定义 */

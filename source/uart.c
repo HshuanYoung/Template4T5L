@@ -9,7 +9,6 @@
  */
 
 #include "uart.h"
-#include "T5LOSConfig.h"
 #include <string.h>
 #include "sys.h"
 
@@ -210,6 +209,11 @@ void Uart4Init(const uint32_t bdt)
     TR4 = 0;
     #endif /* uartUART4_485_ENABLED */
 
+    #if CPU_TYPE==T5F0
+    MUX_SEL1 |= 0x10; 
+	P0MDOUT |= 0x01; 
+	P0MDOUT &= 0xFD; 
+    #endif /* CPU_TYPE==T5F0*/
     SCON2T=0x80;
     SCON2R=0x80;
     
@@ -764,5 +768,6 @@ void UartProtocalHandleTask(void)
     #if uartTA_PROTOCOL_ENABLED
     TAProtocolUpload(&Uart2);
     #endif /* uartTA_PROTOCOL_ENABLED */
+    UartReadFrame(&Uart5);
 }
 

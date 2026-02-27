@@ -14,7 +14,6 @@
 #include "r11_advertise.h"
 #endif /* sysADVERTISE_MODE_ENABLED */
 #include "sys.h"
-#include "T5LOSConfig.h"
 #include "uart.h"
 #include <string.h>
 
