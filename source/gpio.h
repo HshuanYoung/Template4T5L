@@ -1,7 +1,7 @@
 #ifndef GPIO_H
 #define GPIO_H
 
-#include "T5LOSConfig.h"
+#include "sys.h"
 
 /**
  * @file    gpio.h

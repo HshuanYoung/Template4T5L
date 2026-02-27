@@ -324,7 +324,7 @@
               <MiscControls></MiscControls>
               <Define>_RX_TEST _USE_POLL _JPGTEST</Define>
               <Undefine></Undefine>
-              <IncludePath>..\include;..\include\T5L;..\source;..\user;..\modules;..\project</IncludePath>
+              <IncludePath>..\include;..\source;..\user;..\modules;..\project;..\include\T5F</IncludePath>
             </VariousControls>
           </C51>
           <Ax51>
@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define></Define>
               <Undefine></Undefine>
-              <IncludePath>..\include;..\source;..\user;..\include\T5L;..\modules;..\modules;..\project</IncludePath>
+              <IncludePath>..\include;..\source;..\user;..\modules;..\modules;..\project;..\include\T5F</IncludePath>
             </VariousControls>
           </Ax51>
           <Lx51>
@@ -400,6 +400,16 @@
               <FileName>T5LOSConfig.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\include\T5L\T5LOSConfig.h</FilePath>
+            </File>
+            <File>
+              <FileName>t5fos8051.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\include\T5F\t5fos8051.h</FilePath>
+            </File>
+            <File>
+              <FileName>T5FOSConfig.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\include\T5F\T5FOSConfig.h</FilePath>
             </File>
           </Files>
         </Group>

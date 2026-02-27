@@ -9,7 +9,7 @@
 #ifndef I2C_H
 #define I2C_H
 
-#include "T5LOSConfig.h"
+#include "sys.h"
 
 
 /**

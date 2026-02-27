@@ -38,7 +38,7 @@
 #ifndef CORE_JSON_H_
 #define CORE_JSON_H_
 
-#include "T5losConfig.h"
+#include "sys.h"
 
 typedef uint16_t       json_size_t; /**< @brief Size type for memory operations. */
 

@@ -2,7 +2,7 @@
 #define CAN_H
 
 
-#include "T5LOSConfig.h"
+#include "sys.h"
 
 #if canCAN_ENABLED
 

@@ -9,7 +9,7 @@
 
 #ifndef __UART_H__
 #define __UART_H__
-#include "T5LOSConfig.h"
+#include "sys.h"
 
 
 /**

@@ -1,16 +1,16 @@
 /**
- * @file    T5LOSConfig.h
- * @brief   T5L操作系统配置头文件
- * @details 本文件包含T5L嵌入式操作系统的全局配置参数，包括数据类型定义、
+ * @file    T5FOSConfig.h
+ * @brief   T5F操作系统配置头文件
+ * @details 本文件包含T5F嵌入式操作系统的全局配置参数，包括数据类型定义、
  *          系统参数、定时器配置、UART配置和I2C配置等
  * @author  yangming
  * @version 1.0.0
  */
 
-#ifndef T5LOS_CONFIG_H
-#define T5LOS_CONFIG_H
+#ifndef T5FOS_CONFIG_H
+#define T5FOS_CONFIG_H
 
-#include "t5los8051.h"
+#include "t5fos8051.h"
 
 
 /****************************************
@@ -322,7 +322,7 @@ extern uint32_t sysFCLK;
     #if sysBEAUTY_MODE_ENABLED || sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED
     #define uartUART5_BAUDRATE           921600
     #else 
-    #define uartUART5_BAUDRATE           921600
+    #define uartUART5_BAUDRATE           115200
     #endif /* sysBEAUTY_MODE_ENABLED || sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED */
     #define uartUART5_485_ENABLED        0
     
@@ -447,4 +447,4 @@ extern uint32_t sysFCLK;
 
 #define canCAN_ENABLED                  0
 
-#endif /* T5LOS_CONFIG_H */
+#endif /* T5FOS_CONFIG_H */

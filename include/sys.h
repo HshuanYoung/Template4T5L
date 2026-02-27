@@ -10,7 +10,15 @@
 #ifndef SYS_H
 #define SYS_H
 
+#define T5F0      1
+#define T5LX      2
+#define CPU_TYPE    T5F0
+/* 修改此处后还需要修改keil中的设置，使其能够正确找到对应的头文件*/
+#if CPU_TYPE == T5F0
+#include "T5FOSConfig.h"
+#elif CPU_TYPE == T5LX
 #include "T5LOSConfig.h"
+#endif /* CPU_TYPE */
 
 /* DGUS系统变量定义 */
 

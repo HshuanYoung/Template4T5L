@@ -2,7 +2,6 @@
 #define R11_NETSKINANALYZE_H
 
 #include "sys.h"
-#include "T5LOSConfig.h"
 #include "core_json.h"
 #include <string.h>
 #include "uart.h"

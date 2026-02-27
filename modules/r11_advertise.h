@@ -2,7 +2,6 @@
 #define R11_ADVERTISE_H
 
 #include "sys.h"
-#include "T5LOSConfig.h"
 #include <string.h>
 #include "uart.h"
 #include "r11_common.h"

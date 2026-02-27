@@ -2,7 +2,7 @@
 #define _TA_PROTICAL_H_
 
 #include "uart.h"
-#include "T5LOSConfig.h"
+#include "sys.h"
 #if uartTA_PROTOCOL_ENABLED
 /**
  * @brief 处理TA指令集协议帧
