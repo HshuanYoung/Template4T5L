@@ -305,6 +305,11 @@ void Uart5Init(const uint32_t bdt)
     TR5 = 0;
     #endif
 
+    #if CPU_TYPE==T5F0
+    MUX_SEL1 |= 0x20; 
+	P0MDOUT |= 0x40; 
+	P0MDOUT &= 0x7f; 
+    #endif /* CPU_TYPE==T5F0*/
     SCON3T=0x80;
 	SCON3R=0x80;
     

@@ -8,6 +8,10 @@
 #endif /* uartMODBUS_PROTOCOL_ENABLED */
 
 
+#if _4G_AIR780E_ENABLED
+#include "4G_air780e.h"
+#endif
+
 #include "rtc.h"
 
 #if gpioGPIO_ENABLE
@@ -32,48 +36,51 @@
 void main(void)
 {
 
-  #if flashDUAL_BACKUP_ENABLED
-  T5lNorFlashInit();
-  #endif /* flashDUAL_BACKUP_ENABLED */
+	#if flashDUAL_BACKUP_ENABLED
+	T5lNorFlashInit();
+	#endif /* flashDUAL_BACKUP_ENABLED */
 
-  #if sysSET_FROM_LIB
-  R11ConfigInitFormLib();
-  #endif /* sysSET_FROM_LIB */
+	#if sysSET_FROM_LIB
+	R11ConfigInitFormLib();
+	#endif /* sysSET_FROM_LIB */
 
-  T5LCpuInit();
+	T5LCpuInit();
 
-  RtcInit();
-  SysTaskAdd(0, RTC_INTERVAL, RtcTask);
+	RtcInit();
+	SysTaskAdd(0, RTC_INTERVAL, RtcTask);
 
-  // SysTaskAdd(1, COUNT_TASK_INTERVAL, CountTask);
+	// SysTaskAdd(1, COUNT_TASK_INTERVAL, CountTask);
 
-  SysTaskAdd(2, UART_TASK_INTERVAL, UartProtocalHandleTask);
+	SysTaskAdd(2, UART_TASK_INTERVAL, UartProtocalHandleTask);
 
+	#if _4G_AIR780E_ENABLED
+	SysTaskAdd(6, AIR780E_TASK_INTERVAL, Air780E_Task);
+	#endif
 
-  #if sysBEAUTY_MODE_ENABLED
-  SysTaskAdd(3, R11_TASK_INTERVAL, R11NetskinAnalyzeTask);
-  #endif /* sysBEAUTY_MODE_ENABLED */
+	#if sysBEAUTY_MODE_ENABLED
+	SysTaskAdd(3, R11_TASK_INTERVAL, R11NetskinAnalyzeTask);
+	#endif /* sysBEAUTY_MODE_ENABLED */
 
-  #if sysN5CAMERA_MODE_ENABLED
-  SysTaskAdd(3, R11_TASK_INTERVAL, R11N5CameraTask);
-  #endif /* sysN5CAMERA_MODE_ENABLED */
-  
-  #if sysADVERTISE_MODE_ENABLED
-  SysTaskAdd(3, R11_TASK_INTERVAL, R11AdvertiseTask);
-  #endif /* sysADVERTISE_MODE_ENABLED */
+	#if sysN5CAMERA_MODE_ENABLED
+	SysTaskAdd(3, R11_TASK_INTERVAL, R11N5CameraTask);
+	#endif /* sysN5CAMERA_MODE_ENABLED */
 
-  while(1)
-  {
+	#if sysADVERTISE_MODE_ENABLED
+	SysTaskAdd(3, R11_TASK_INTERVAL, R11AdvertiseTask);
+	#endif /* sysADVERTISE_MODE_ENABLED */
+
+	while(1)
+	{
 	/** 这个任务需要在主循环中运行，用来进行数据出错后的处理 */
 	#if sysBEAUTY_MODE_ENABLED || sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED
 	if(data_write_f > 2)
 	{
-	  EX0 = 0;
-	  EX1 = 0;
+		EX0 = 0;
+		EX1 = 0;
 		data_write_f = 0;
-	  EX1_Start();
+		EX1_Start();
 	}
 	#endif /* sysBEAUTY_MODE_ENABLED||sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED */
-  SysTaskRun();
-  }
+	SysTaskRun();
+	}
 }

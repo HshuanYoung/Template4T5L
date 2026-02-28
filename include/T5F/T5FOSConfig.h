@@ -447,4 +447,6 @@ extern uint32_t sysFCLK;
 
 #define canCAN_ENABLED                  0
 
+#define _4G_AIR780E_ENABLED             1
+
 #endif /* T5FOS_CONFIG_H */
