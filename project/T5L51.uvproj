@@ -566,6 +566,16 @@
               <FileType>5</FileType>
               <FilePath>..\modules\ACCharger.h</FilePath>
             </File>
+            <File>
+              <FileName>4G_air780e.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\modules\4G_air780e.c</FilePath>
+            </File>
+            <File>
+              <FileName>4G_air780e.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\modules\4G_air780e.h</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>
