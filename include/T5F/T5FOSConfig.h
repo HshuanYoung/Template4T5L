@@ -322,7 +322,7 @@ extern uint32_t sysFCLK;
     #if sysBEAUTY_MODE_ENABLED || sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED
     #define uartUART5_BAUDRATE           921600
     #else 
-    #define uartUART5_BAUDRATE           115200
+    #define uartUART5_BAUDRATE           921600
     #endif /* sysBEAUTY_MODE_ENABLED || sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED */
     #define uartUART5_485_ENABLED        0
     
@@ -448,5 +448,8 @@ extern uint32_t sysFCLK;
 #define canCAN_ENABLED                  0
 
 #define _4G_AIR780E_ENABLED             1
+#if _4G_AIR780E_ENABLED
+#define AIR780E_UART    Uart5
+#endif
 
 #endif /* T5FOS_CONFIG_H */

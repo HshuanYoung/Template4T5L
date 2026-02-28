@@ -18,6 +18,7 @@
  */
 //#define rtcRX_8130
 //#define rtcSD_2058
+#define rtcFROM_NET
 
 #include "sys.h"
 

@@ -669,9 +669,7 @@ void ACChargerBackGroundTask()
 
 void ACChargerTask(void)
 {
-    uint8_t arr[10] = {0x5a,0x5a,0x5a,0x5a,0x00,0x00,0x00,0x00};
     // ACChargerBackGroundTask();
     ACChargerKeyHandleTask();
     // ACChargerStateCheckTask();
-    UartSendData(&Uart5,arr,8);
 }

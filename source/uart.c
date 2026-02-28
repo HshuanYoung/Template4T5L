@@ -566,6 +566,26 @@ static void UartStandardDwin8283Protocal(UART_TYPE *uart,uint8_t *frame, uint16_
             frame[2] -= 2;
         }
         write_dgus_vp((frame[4] << 8) | frame[5], &frame[6], (frame[2] - 3) >> 1);
+        #if _4G_AIR780E_ENABLED
+        if(uart == &AIR780E_UART)
+        {
+            i=0;
+            send_return_frame[i++] = 0x5a;
+            send_return_frame[i++] = 0xa5;
+            send_return_frame[i++] = 0x03;
+            send_return_frame[i++] = 0x82;  
+            send_return_frame[i++] = 0x4f;
+            send_return_frame[i++] = 0x4b;
+            if(CrcFlag != 0)
+            {
+                send_return_frame[2] += 2;
+                CrcResult = crc_16(&send_return_frame[3], send_return_frame[2] - 2);
+                send_return_frame[send_return_frame[2]+1] = (uint8_t)CrcResult;
+                send_return_frame[send_return_frame[2]+2] = CrcResult >> 8;
+            }
+            UartSendData(uart, send_return_frame, i);
+        }
+        #endif
         #if uartUART_82CMD_RETURN
         i=0;
         send_return_frame[i++] = 0x5a;
@@ -576,9 +596,10 @@ static void UartStandardDwin8283Protocal(UART_TYPE *uart,uint8_t *frame, uint16_
         send_return_frame[i++] = 0x4b;
         if(CrcFlag != 0)
         {
-            CrcResult = crc_16(&frame[3], frame[2] - 2);
-            send_return_frame[i++] = (uint8_t)CrcResult;
-            send_return_frame[i++] = CrcResult >> 8;
+            send_return_frame[2] += 2;
+            CrcResult = crc_16(&send_return_frame[3], send_return_frame[2] - 2);
+            send_return_frame[send_return_frame[2]+1] = (uint8_t)CrcResult;
+            send_return_frame[send_return_frame[2]+2] = CrcResult >> 8;
         }
         UartSendData(uart, send_return_frame, i);
         #endif /* uartUART_82CMD_RETURN */

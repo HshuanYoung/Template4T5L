@@ -50,6 +50,9 @@ void main(void)
 	T5LCpuInit();
 
 	RtcInit();
+    #if _4G_AIR780E_ENABLED
+    Air780E_ChangeServerPara(air780eCONNECT_DWINCLOUD);
+    #endif
 	SysTaskAdd(0, RTC_INTERVAL, RtcTask);
 
 	// SysTaskAdd(1, COUNT_TASK_INTERVAL, CountTask);

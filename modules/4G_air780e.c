@@ -1,6 +1,7 @@
 #include "4G_air780e.h"
 #include "core_json.h"
 #include "string.h"
+#include "uart.h"
 
 Air780E_Status air780e_status;
 uint16_t air780e_num_rent[8] = {0};
@@ -118,7 +119,7 @@ static void Air780E_InitServerPara(void)
 }
 
 
-static void Air780E_ChangeServerPara(uint8_t type)
+void Air780E_ChangeServerPara(uint8_t type)
 {
     uint16_t write_param[10],read_param[10];
     write_dgus_vp(0x2000,(uint8_t *)&type,1);
@@ -135,7 +136,8 @@ static void Air780E_ChangeServerPara(uint8_t type)
         case air780eCONNECT_WEBSOCKET:
             FlashToDgus(flashMAIN_BLOCK_ORDER,0x0000,air780eNORFLASH_RENT_ADDR,98);
             read_dgus_vp(air780eNORFLASH_RENT_ADDR,(uint8_t *)&read_param[0],1);
-            if(read_param[0] == 0x5aa5)
+            // if(read_param[0] == 0x5aa5)
+            if(0)
             {
                 read_dgus_vp(air780eNORFLASH_RENT_ADDR+1,air780e_status.url_string,32);
             }else
@@ -149,7 +151,8 @@ static void Air780E_ChangeServerPara(uint8_t type)
         case air780eCONNECT_HTTP:
             FlashToDgus(flashMAIN_BLOCK_ORDER,0x0000,air780eNORFLASH_RENT_ADDR,98);
             read_dgus_vp(air780eNORFLASH_RENT_ADDR,(uint8_t *)&read_param[0],1);
-            if(read_param[0] == 0x5aa5)
+            // if(read_param[0] == 0x5aa5)
+            if(0)
             {
                 read_dgus_vp(air780eNORFLASH_RENT_ADDR+1,air780e_status.url_string,32);
             }else
@@ -163,7 +166,8 @@ static void Air780E_ChangeServerPara(uint8_t type)
         case air780eCONNECT_MQTT:
             FlashToDgus(flashMAIN_BLOCK_ORDER,0x0000,air780eNORFLASH_RENT_ADDR,98);
             read_dgus_vp(air780eNORFLASH_RENT_ADDR,(uint8_t *)&read_param[0],1);
-            if(read_param[0] == 0x5aa5)
+            // if(read_param[0] == 0x5aa5)
+            if(0)
             {
                 read_dgus_vp(air780eNORFLASH_RENT_ADDR+1,air780e_status.url_string,32);
                 read_dgus_vp(air780eNORFLASH_RENT_ADDR+1+32,air780e_status.machine_no_rx,32);
@@ -187,7 +191,7 @@ static void Air780E_ChangeServerPara(uint8_t type)
 static void Air780E_ServerConnectTask(void)
 {
     uint16_t read_param[10],write_param[10];
-    uint8_t json_cmd[64] = {0},i;
+    uint8_t json_cmd[128] = {0},i;
     uint8_t send_data[126];
     uint8_t air780e_receive_buf[DATA_MAX_LEN];
     switch(air780e_status.connect_type)
@@ -250,7 +254,6 @@ static void Air780E_ServerConnectTask(void)
                     switch(air780e_status.connect_type)
                     {
                         case air780eCONNECT_WEBSOCKET:
-                        case air780eCONNECT_HTTP:
                             if('{' == air780e_receive_buf[0])
                             {
                                 if(JSONSearchToArray(air780e_receive_buf,strlen(air780e_receive_buf),"type",sizeof("type") - 1,json_cmd) == JSONSuccess)
@@ -273,15 +276,46 @@ static void Air780E_ServerConnectTask(void)
                                 }
                             }
                             break;
-                        case air780eCONNECT_MQTT:
-                            if(JSONSearchToArray(air780e_receive_buf,strlen(air780e_receive_buf),air780e_status.machine_no_rx,strlen(air780e_status.machine_no_rx),json_cmd) == JSONSuccess)
+                        case air780eCONNECT_HTTP:
+                            if('{' == air780e_receive_buf[0])
                             {
-                                if(JSONSearchToArray(air780e_receive_buf,strlen(air780e_receive_buf),"type",sizeof("type") - 1,json_cmd) == JSONSuccess)
+                                if(JSONSearchToArray(air780e_receive_buf,strlen(air780e_receive_buf),"data.type",sizeof("data.type") - 1,json_cmd) == JSONSuccess)
                                 {
                                     if(strcmp((char *)json_cmd,"up_date") == 0)
                                     {
                                         memset(json_cmd,0,sizeof(json_cmd));
-                                        if(JSONSearchToArray(air780e_receive_buf,strlen(air780e_receive_buf),"content",sizeof("content") - 1,json_cmd) == JSONSuccess)
+                                        if(JSONSearchToArray(air780e_receive_buf,strlen(air780e_receive_buf),"data.content",sizeof("data.content") - 1,json_cmd) == JSONSuccess)
+                                        {
+                                            //在末尾补上两个0x00
+                                            json_cmd[strlen(json_cmd)] = 0x00;
+                                            json_cmd[strlen(json_cmd) + 1] = 0x00;
+                                            write_dgus_vp(0x2c00,json_cmd,strlen(json_cmd) + 2);
+
+                                        }
+                                    }else if(strcmp((char *)json_cmd,"dwin_download_vedio") == 0)
+                                    {
+                                        __NOP();
+                                    }
+                                }
+                            }
+                            break;
+                        case air780eCONNECT_MQTT:
+                            if(strncmp(air780e_status.machine_no_tx,air780e_receive_buf,10) == 0)
+                            {
+                                read_param[2] = strlen(air780e_receive_buf);
+                                for(i=0;i<read_param[2];i++)
+                                {
+                                    if(air780e_receive_buf[i] == '{')
+                                    {
+                                        break;
+                                    }
+                                }
+                                if(JSONSearchToArray(&air780e_receive_buf[i],read_param[2] - i,"type",sizeof("type") - 1,json_cmd) == JSONSuccess)
+                                {
+                                    if(strcmp((char *)json_cmd,"up_date") == 0)
+                                    {
+                                        memset(json_cmd,0,sizeof(json_cmd));
+                                        if(JSONSearchToArray(&air780e_receive_buf[i],read_param[2] - i,"content",sizeof("content") - 1,json_cmd) == JSONSuccess)
                                         {
                                             //在末尾补上两个0x00
                                             json_cmd[strlen(json_cmd)] = 0x00;
@@ -320,6 +354,7 @@ static void Air780E_ServerConnectTask(void)
         {
             case air780eCONNECT_WEBSOCKET:
                 air780e_status.connect_step++;
+                UartSendData(&Uart2,(uint8_t *)&air780e_status.connect_step,1);
                 if(air780e_status.connect_step == 1)
                 {
                     write_param[0] = air780e_status.download_addr;
@@ -442,10 +477,10 @@ static void Air780E_SendServerData()
 {
     uint16_t now_len = 0,zero_value = 0,http_head_len = 0;
     uint8_t air780e_send_data[2048],tmp_arr[128];
-    // if(air780e_status.connect_flag == 0)
-    // {
-    //     return;
-    // }
+    if(air780e_status.connect_flag == 0)
+    {
+        return;
+    }
     now_len = 0;
     switch(air780e_status.connect_type)
     {
@@ -453,13 +488,17 @@ static void Air780E_SendServerData()
         break;
         case air780eCONNECT_HTTP:
             air780e_send_data[0] = 0x00;
-            air780e_send_data[1] = 0x00;
+            air780e_send_data[1] = 0x00;         /*总长度*/
             now_len = 2;
             air780e_send_data[now_len] = 1;  /*paratype 0普通字符串，1json字符串*/
             now_len++;
             air780e_send_data[now_len] = 1;  /*methord  0 get，1 post*/
             now_len++;
+            now_len += 2;            
             now_len = CopyAsciiString(air780e_send_data,air780e_status.url_string,now_len);
+            air780e_send_data[4] = (now_len - 6)>>8;
+            air780e_send_data[5] = (now_len - 6)&0xff;
+
             air780e_send_data[now_len] = 0x00;
             air780e_send_data[now_len+1] = 0x00;
             http_head_len = now_len;
@@ -556,23 +595,23 @@ static void Air780E_ValueScanTask(void)
     if(dgus_value == 0x0001)
     {
         Air780E_ChangeServerPara(air780eCONNECT_WEBSOCKET);
-        write_dgus_vp(AIR780E_VALUE_SCAN_ADDR, (uint8_t *)&dgus_value, 1);
+        write_dgus_vp(AIR780E_VALUE_SCAN_ADDR, (uint8_t *)&uint16_port_zero, 1);
     }else if(dgus_value == 0x0002)
     {
         Air780E_ChangeServerPara(air780eCONNECT_HTTP);
-        write_dgus_vp(AIR780E_VALUE_SCAN_ADDR, (uint8_t *)&dgus_value, 1);
+        write_dgus_vp(AIR780E_VALUE_SCAN_ADDR, (uint8_t *)&uint16_port_zero, 1);
     }else if(dgus_value == 0x0003)
     {
         Air780E_ChangeServerPara(air780eCONNECT_MQTT);
-        write_dgus_vp(AIR780E_VALUE_SCAN_ADDR, (uint8_t *)&dgus_value, 1);
+        write_dgus_vp(AIR780E_VALUE_SCAN_ADDR, (uint8_t *)&uint16_port_zero, 1);
     }else if(dgus_value == 0x0004)
     {
         Air780E_InitServerPara();
-        write_dgus_vp(AIR780E_VALUE_SCAN_ADDR, (uint8_t *)&dgus_value, 1);
+        write_dgus_vp(AIR780E_VALUE_SCAN_ADDR, (uint8_t *)&uint16_port_zero, 1);
     }else if(dgus_value == 0x0005)
     {
         Air780E_SendServerData();
-        write_dgus_vp(AIR780E_VALUE_SCAN_ADDR, (uint8_t *)&dgus_value, 1);
+        write_dgus_vp(AIR780E_VALUE_SCAN_ADDR, (uint8_t *)&uint16_port_zero, 1);
     }
 }
 

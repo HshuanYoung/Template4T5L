@@ -6,7 +6,6 @@
 #include "sys.h"
 
 
-#define AIR780E_UART    uart5
 #define DATA_MAX_LEN    1024
 #define air780eCONNECT_DWINCLOUD         0
 #define air780eCONNECT_WEBSOCKET         1
@@ -42,5 +41,6 @@ extern uint8_t air780e_mac_buffer[32];
 extern uint8_t air780e_ccid_buffer[32];
 
 void Air780E_Task(void);
+void Air780E_ChangeServerPara(uint8_t type);
 
 #endif /* _4G_AIR780E_H_ */

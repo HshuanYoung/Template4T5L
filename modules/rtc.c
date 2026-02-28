@@ -198,6 +198,7 @@ void RtcReadTime(void)
 }
 #endif  /* rtcRX_8130 || rtcSD_2058 */
 
+#ifdef rtcRX_8130 || rtcSD_2058
 void RtcWriteTime(void)
 {
     uint8_t read_param[8],write_param[8];
@@ -218,6 +219,27 @@ void RtcWriteTime(void)
         write_dgus_vp(0x009c, read_param, 1);
     }
 }
+#elif defined(rtcFROM_NET)
+void RtcWriteTime(void)
+{
+    uint8_t read_param[8],write_param[8];
+    uint8_t i;
+    read_dgus_vp(0x04ac, read_param, 4);
+    if(read_param[0] == 0x5a)
+    {
+        memcpy(write_param, read_param + 1, 7);
+        write_param[7] = 0;
+        write_dgus_vp(0x0010,(uint8_t *)&write_param[0],4);
+        memset(read_param, 0, 1);
+        write_dgus_vp(0x04ac, read_param, 1);
+    }
+}
+#else 
+void RtcWriteTime(void)
+{
+
+}
+#endif 
 
 
 void RtcTask(void)
