@@ -12,7 +12,7 @@
 #if sysBEAUTY_MODE_ENABLED
 
 
-#define cameraLIGHT_IO_CONTROL_ENABLED         1
+#define cameraLIGHT_IO_CONTROL_ENABLED         0
 #if cameraLIGHT_IO_CONTROL_ENABLED
 #define cameraLIGHT_IO_CONTROL_NUM             P06
 #define cameraLIGHT_IO_CONTROL_NUM2            P07
