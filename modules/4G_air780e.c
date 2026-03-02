@@ -8,18 +8,6 @@ uint8_t air780e_time_buffer[32]={0};
 uint8_t air780e_mac_buffer[32]={0};
 uint8_t air780e_ccid_buffer[32]={0};
 
-static uint8_t StringAddEOF(uint8_t *str)
-{
-    // uint8_t i = 0;
-    // while (str[i] != '\0' || str[i] != 0x00 || str[i] != 0xFF)
-    // {
-    //     i++;
-    // }
-    // str[i] = 0x00;
-    // str[i+1] = 0x00;
-    // return i + 2;
-}
-
 
 static void Air780E_TimebufferHandle(void)
 {
@@ -70,7 +58,6 @@ static void Air780E_InitServerPara(void)
             air780e_status.connect_flag = 0;
             air780e_status.connect_step = 0;
             read_dgus_vp(0x2400,(uint8_t *)air780e_status.url_string,32);
-            StringAddEOF(air780e_status.url_string);
             write_dgus_vp(air780eNORFLASH_RENT_ADDR+1, air780e_status.url_string,32);
             write_param[0] = 0x5aa5;
             write_dgus_vp(air780eNORFLASH_RENT_ADDR,(uint8_t *)&write_param[0],1);
@@ -84,7 +71,6 @@ static void Air780E_InitServerPara(void)
             air780e_status.connect_flag = 0;
             air780e_status.connect_step = 0;
             read_dgus_vp(0x2400,(uint8_t *)air780e_status.url_string,32);
-            StringAddEOF(air780e_status.url_string);
             write_dgus_vp(air780eNORFLASH_RENT_ADDR+1, air780e_status.url_string,32);
             write_param[0] = 0x5aa5;
             write_dgus_vp(air780eNORFLASH_RENT_ADDR,(uint8_t *)&write_param[0],1);
@@ -100,11 +86,8 @@ static void Air780E_InitServerPara(void)
             air780e_status.connect_flag = 0;
             air780e_status.connect_step = 0;
             read_dgus_vp(0x2400,(uint8_t *)air780e_status.url_string,32);
-            StringAddEOF(air780e_status.url_string);
             read_dgus_vp(0x2600,(uint8_t *)air780e_status.machine_no_rx,32);
-            StringAddEOF(air780e_status.machine_no_rx);
             read_dgus_vp(0x2700,(uint8_t *)air780e_status.machine_no_tx,32);
-            StringAddEOF(air780e_status.machine_no_tx);
             write_dgus_vp(air780eNORFLASH_RENT_ADDR+1, air780e_status.url_string,32);
             write_dgus_vp(air780eNORFLASH_RENT_ADDR+1+32, air780e_status.machine_no_rx,32);
             write_dgus_vp(air780eNORFLASH_RENT_ADDR+1+32+32, air780e_status.machine_no_tx,32);
