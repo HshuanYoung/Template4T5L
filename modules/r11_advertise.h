@@ -8,6 +8,7 @@
 
 #if sysADVERTISE_MODE_ENABLED
 #define TERNARY_CODE_ADDR       0x0410
+#define CPU_INFO_ADDR           0x0482
 #define WEBSOCKET_ADDR          0x0680
 #define PIXELS_SET_ADDR         0x0580
 #define FCLK_DIV_ADDR           0x0581
@@ -54,8 +55,8 @@
 
 #define R11_TASK_INTERVAL       100
 #define R11_SCAN_ADDRESS     	(uint32_t)0x0600
-#define netWIFI_STATUS_ADDR     0x18b4
-#define COMIC_STATUS_ADDR       0x18b6     /** 统一的过渡动画使能标志，初始写1 */
+#define netWIFI_STATUS_ADDR    	0x06D8
+#define COMIC_STATUS_ADDR       0x06D9     /** 统一的过渡动画使能标志，初始写1 */
 
 
 

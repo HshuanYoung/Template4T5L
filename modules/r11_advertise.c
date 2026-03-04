@@ -175,17 +175,17 @@ void UartR11UserAdvertiseProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
             return;
         }
 
-		/*********
         if((frame[len-1]<<8 |frame[len-2]) != crc_16(&frame[4], len-6))
         {
             return;
         }else{
             len -= 2;
         }
-		***************/
+		
         if(frame[5] == 0x04 && frame[6] == 0x82)
         {
             r11_state.restart_flag = 1;  /* 设置重启标志 */
+			write_dgus_vp(CPU_INFO_ADDR,(uint8_t*)&frame[7],(len-7)>>1);
         }else if(frame[5] == 0x04 && frame[6] == 0xa2)
 		{
 			/** 

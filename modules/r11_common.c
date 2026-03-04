@@ -621,18 +621,22 @@ void R11VideoValueHandle(uint16_t dgus_value)
         {
             r11_send_buf[0] = 0x00;
             r11_send_buf[1] = 90;
+            r11_player.rotate = 1;
         }else if(r11_player.rotate == 1)
         {
             r11_send_buf[0] = 0x00;
             r11_send_buf[1] = 180;
+            r11_player.rotate = 2;
         }else if(r11_player.rotate == 2)
         {
             r11_send_buf[0] = 0x01;
             r11_send_buf[1] = 0x0e;
+            r11_player.rotate = 3;
         }else if(r11_player.rotate == 3)
         {
             r11_send_buf[0] = 0;
             r11_send_buf[1] = 0;
+            r11_player.rotate = 0;
         }
         T5lSendUartDataToR11(cmdMP4_ROTATE_ANGLE, r11_send_buf);
     }else if(dgus_value == keyMP4_NONE_LOOP_MODE)
@@ -901,20 +905,18 @@ void R11WifiValueHandle(uint16_t dgus_value)
         r11_send_buf[0] = 0xaa;
         r11_send_buf[1] = 0x55;
         r11_send_buf[2] = 0x00;
-        r11_send_buf[3] = 0x03;
+        r11_send_buf[3] = 0x02;
         r11_send_buf[4] = cmdCHECK_STATUS_NET;
-        r11_send_buf[5] = 0x01;
-        r11_send_buf[6] = (uint8_t)(dgus_value - keyCHECK_STATUS_WIFI + 1);
+        r11_send_buf[5] = (uint8_t)(dgus_value - keyCHECK_STATUS_WIFI + 1);
         T5lSendUartDataToR11(cmdCHECK_STATUS_NET, r11_send_buf);
     }else if(dgus_value == keyCHECK_STATUS_exUDISK || dgus_value == keyCHECK_STATUS_SDCARD)
     {
         r11_send_buf[0] = 0xaa;
         r11_send_buf[1] = 0x55;
         r11_send_buf[2] = 0x00;
-        r11_send_buf[3] = 0x03;
+        r11_send_buf[3] = 0x02;
         r11_send_buf[4] = cmdCHECK_STATUS_DEVICE;
-        r11_send_buf[5] = 0x01;
-        r11_send_buf[6] = (uint8_t)(dgus_value - keyCHECK_STATUS_exUDISK + 1);
+        r11_send_buf[5] = (uint8_t)(dgus_value - keyCHECK_STATUS_exUDISK + 1);
         T5lSendUartDataToR11(cmdCHECK_STATUS_DEVICE, r11_send_buf);
     }
 }
@@ -1034,6 +1036,30 @@ void UartR11UserVideoProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
         case cmdCHECK_STATUS_NET:
             write_dgus_vp(CHECK_NET_STATUS_ADDR,&frame[5],1);
             break;
+        case cmdCHECK_STATUS_DEVICE:
+            write_dgus_vp(CHECK_DEVICE_STATUS_ADDR,&frame[5],1);
+            break;
+        case cmdMP4_LOOP_MODE_SET:       /*云端设置播放状态同步，0维持老播放原则，1单曲播放，2循环播放*/
+            /*frame[5]指是否替换play_json生成新的规则，frame[6]指播放状态*/
+            if(frame[6] == 0x00)    /*下载完不播放，停止循环*/
+            {
+                write_param[0] = 0x0000;
+            }else if(frame[6] == 0x01 ||frame[6] == 0x02 )   /*单曲循环*/
+            {
+                write_param[0] = 0x01<<8|frame[6];
+            }
+            write_dgus_vp(LOOP_MODE_ADDR, (uint8_t *)&write_param[0], 0x01);
+            DgusToFlash(flashMAIN_BLOCK_ORDER, LOOP_MODE_ADDR, LOOP_MODE_ADDR, 0x02);
+            /*设置完成后进行一次查询*/
+            #if sysBEAUTY_MODE_ENABLED
+            r11_player.store_type = SDCARD;
+            #elif sysADVERTISE_MODE_ENABLED
+            r11_player.store_type = exUDISK;
+            #else
+            r11_player.store_type = SDCARD;
+            #endif /* sysADVERTISE_MODE_ENABLED END */
+            write_param[0] = r11_player.store_type<<8|MP4;
+            T5lSendUartDataToR11(cmdMP4_UPDATEFILE, write_param);
         default:
             break;
         }
