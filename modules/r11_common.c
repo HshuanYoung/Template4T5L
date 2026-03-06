@@ -199,7 +199,7 @@ void T5lSendUartDataToR11( uint8_t cmd, uint8_t *buf)
                     now_len += Temp_Buf_uint8_t[0];
                     break;
                 default:
-                    r11_player.store_type = 2;
+                    r11_player.store_type = exUDISK;
                     Temp_Buf_uint8_t[0] = strlen ( DirPath ( r11_player.store_type ) ) ;
                     memcpy ( &r11_buf[5], DirPath ( r11_player.store_type ), Temp_Buf_uint8_t[0] );
                     now_len += Temp_Buf_uint8_t[0];
@@ -370,8 +370,8 @@ void R11VideoPlayerProcess(void)
         video_init_process = VIDEO_PROCESS_SEARCH_LOOP;
     }else if(video_init_process == VIDEO_PROCESS_SEARCH_LOOP)
     {
-        /** 2.检查循环播放设置,如果开启循环，则认为已经开始自动播放，0x00xx为不循环，0x0101循环当前，0x0102循环所有 */
-        if((read_param[2]&0xFF00) == 0x0100)
+        /** 2.检查循环播放设置,如果开启循环，则认为已经开始自动播放，0xxx00为不循环，0xxx01循环当前，0x0002循环云端的视频发给r11不更新规则，0x0102循环所有并且发给r11更新规则 */
+        if((read_param[2]&0x00ff) != 0x0000)
         {
             video_init_process = VIDEO_PROCESS_SIZE;
         }else
@@ -435,7 +435,14 @@ void R11VideoPlayerProcess(void)
         #endif /* sysADVERTISE_MODE_ENABLED END */
         r11_send_buf[1] = MP4;
         T5lSendUartDataToR11(cmdMP4_UPDATEFILE, r11_send_buf);
-        video_init_process = VIDEO_PROCESS_PLAY;
+        if((read_param[2]&0xff00) != 0x0000)
+        {
+            video_init_process = VIDEO_PROCESS_PLAY;
+        }else
+        {
+            /* 采用老规则播放时不再自动播放*/
+            video_init_process = VIDEO_PROCESS_SET_LOOP;
+        }
     }else if(video_init_process == VIDEO_PROCESS_PLAY)
     {
         r11_send_buf[0] = 0;
@@ -455,6 +462,11 @@ void R11VideoPlayerProcess(void)
         }
     }else if(video_init_process == VIDEO_PROCESS_SET_LOOP)
     {
+        if((read_param[2]&0xff00) == 0x0000)
+        {
+            /*采用老规则，并且循环播放*/
+            read_param[2] = 0x0100;
+        }
         T5lSendUartDataToR11(cmdMP4_LOOP_MODE_SET,(uint8_t *)&read_param[2]);
         video_init_process = VIDEO_PROCESS_COMPLETE;
     }else if(video_init_process == VIDEO_PROCESS_COMPLETE){
@@ -1040,14 +1052,29 @@ void UartR11UserVideoProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
         case cmdCHECK_STATUS_DEVICE:
             write_dgus_vp(CHECK_DEVICE_STATUS_ADDR,&frame[5],1);
             break;
-        case cmdMP4_LOOP_MODE_SET:       /*云端设置播放状态同步，0维持老播放原则，1单曲播放，2循环播放*/
-            /*frame[5]指是否替换play_json生成新的规则，frame[6]指播放状态*/
-            if(frame[6] == 0x00)    /*下载完不播放，停止循环*/
+        case cmdMP4_LOOP_MODE_SET:       
+            /**
+             * 处理云端下发的循环播放指令
+             * t5l：
+             * LOOP_MODE_ADDR高位对应是否发送循环指令：0x00不更新play_json，即不发送，0x01更新playsjson
+             * LOOP_MODE_ADDR低位对应循环播放状态：0x00不循环，，0x01单曲循环，0x02全部循环
+             * 云端三种状态
+             * 1.下载完不播放，对应停止循环，此时t5l存储0x0000，r11发送0x0000
+             * 2.播放下载的视频，对应全部循环，此时t5l存储0x0002，r11发送0x0100
+             * 3.播放全部视频，对应全部循环，此时t5l存储0x0102，r11发送0x0102
+             */
+            if(frame[5] == 0x00)    /*下载完不播放，停止循环*/
             {
                 write_param[0] = 0x0000;
-            }else if(frame[6] == 0x01 ||frame[6] == 0x02 )   /*单曲循环*/
+            }else if(frame[5] == 0x01  )   /*单曲循环*/
             {
-                write_param[0] = 0x01<<8|frame[6];
+                if(frame[6] == 0x00)
+                {
+                    write_param[0] = 0x0002;
+                }else if(frame[6] == 0x02)
+                {
+                    write_param[0] = 0x0102;
+                }
             }
             write_dgus_vp(LOOP_MODE_ADDR, (uint8_t *)&write_param[0], 0x01);
             DgusToFlash(flashMAIN_BLOCK_ORDER, LOOP_MODE_ADDR, LOOP_MODE_ADDR, 0x02);
