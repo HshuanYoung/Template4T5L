@@ -90,6 +90,7 @@
 
 #define ABBR_QUALITY            50
 #define THRESH_NUM              45
+#define T5L_MAX_PIC_KB          16
 
 #define R11_TASK_INTERVAL       100
 #define R11_SCAN_ADDRESS     	(uint32_t)0x0600
