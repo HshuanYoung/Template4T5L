@@ -590,7 +590,7 @@ static void MagnifierKeyHandle(uint16_t dgus_value)
 			r11_send_buf[0] = 0xaa;
 			r11_send_buf[1] = 0x55;
 			r11_send_buf[2] = 0x00;
-			r11_send_buf[3] = (7+32);
+			r11_send_buf[3] = (8+32);
 			r11_send_buf[4] = cameraCAP_PICTURE;
 			r11_send_buf[5] = r11_state.now_choose_pic;
 			r11_send_buf[6] = camera_magnifier.camera_cap_high>>8;
@@ -598,10 +598,12 @@ static void MagnifierKeyHandle(uint16_t dgus_value)
 			r11_send_buf[8] = camera_magnifier.camera_cap_width >> 8;
 			r11_send_buf[9] = (uint8_t)camera_magnifier.camera_cap_width;
 			r11_send_buf[10] = ABBR_QUALITY;
+			/** 2026.03.09:增加图片大小的设置 */
+			r11_send_buf[11] = T5L_MAX_PIC_KB;
 			/** 2025.08.26:增加指定路径创建大图 */
-			read_dgus_vp(addr_st.folder_addr,(uint8_t*)&r11_send_buf[11],16);
-			FormatArrayToFullPath(&r11_send_buf[11], 32);
-			UartSendData(&Uart_R11,r11_send_buf,11+32);
+			read_dgus_vp(addr_st.folder_addr,(uint8_t*)&r11_send_buf[12],16);
+			FormatArrayToFullPath(&r11_send_buf[12], 32);
+			UartSendData(&Uart_R11,r11_send_buf,12+32);
 			r11_state.delay_count = 0;
 		}else
 		{
@@ -1391,7 +1393,7 @@ static void R11AnalyzeTask(void)
 			r11_send_buf[0] = 0xAA;
 			r11_send_buf[1] = 0x55;
 			r11_send_buf[2] = 0x00;
-			r11_send_buf[3] = 0x07;
+			r11_send_buf[3] = 0x08;
 			r11_send_buf[4] = analyze.type;
 			r11_send_buf[5] = r11_state.now_choose_pic;
 			r11_send_buf[6] = camera_magnifier.camera_cap_high>>8;
@@ -1399,7 +1401,9 @@ static void R11AnalyzeTask(void)
 			r11_send_buf[8] = camera_magnifier.camera_cap_width>>8;
 			r11_send_buf[9] = (uint8_t)camera_magnifier.camera_cap_width;
 			r11_send_buf[10] = ABBR_QUALITY;
-			UartSendData(&Uart_R11,r11_send_buf,11);
+			/** 2026.03.09:增加图片大小的设置 */
+			r11_send_buf[11] = T5L_MAX_PIC_KB;
+			UartSendData(&Uart_R11,r11_send_buf,12);
 			write_dgus_vp(analyzeFAIL_ADDR,(uint8_t*)&uint16_port_zero,1);
 			analyze_process = 0;
 			start_cap_flag = 0;
