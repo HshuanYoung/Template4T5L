@@ -1199,7 +1199,7 @@ static void R11HairAnalyzeCalcResult(void)
 {
 	#define HAIR_ANALYZE_LEVEL_ENABLED 1          /* 是否采用皮肤颜色分级模式 0采用rgb24转16的原始颜色，1采用皮肤和头发分级模式*/
 	/* RGB24转RGB16宏定义 565*/
-	#define RGB24_2_RGB16(r,g,b)  ( ((r>>3)<<11) | ((g>>2)<<5) | (b>>3) )
+	#define RGB24_2_RGB16(r,g,b)  ( (((uint16_t)r>>3)<<11) | ((g>>2)<<5) | (b>>3) )
 	uint16_t hair_level_sum,skin_level_sum,i;
 	#if (HAIR_ANALYZE_LEVEL_ENABLED == 0)
 	uint8_t color_rect_arr[26];
@@ -1822,9 +1822,9 @@ static void R11FaceTypeChooseTask(void)
 		write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t *)&write_param[0],1);
 		R11ChangePictureLocate(mainview.main_x_point,mainview.main_y_point,mainview.main_high,mainview.main_weight,0x02);
 		R11ClearPicture(1);
-		/* 修改缩略图显示的大小，改到64k大小的显示 */
+		/* 修改缩略图显示的大小，改到16k+48k大小的显示 */
 		Icon_Overlay_SP_VP[4] = 0x37000;
-		Icon_Overlay_SP_VP[5] = 0x3b000;
+		Icon_Overlay_SP_VP[5] = 0x39000;
 		Icon_Overlay_SP_VP[6] = 0x3f000;
 		write_dgus_vp(R11_FACE_TYPE_ADDR,(uint8_t *)&uint16_port_zero,1);
 	}else if(dgus_value > 0x0001 && dgus_value <= 0x0008)
