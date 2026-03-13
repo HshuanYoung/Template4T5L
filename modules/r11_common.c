@@ -1059,7 +1059,7 @@ void UartR11UserVideoProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
             r11_player.store_type = SDCARD;
             #endif /* sysADVERTISE_MODE_ENABLED END */
             write_param[0] = r11_player.store_type<<8|MP4;
-            T5lSendUartDataToR11(cmdMP4_UPDATEFILE, write_param);
+            T5lSendUartDataToR11(cmdMP4_UPDATEFILE, (uint8_t *)&write_param[0]);
         default:
             break;
         }

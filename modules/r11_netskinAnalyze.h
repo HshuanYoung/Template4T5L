@@ -94,26 +94,29 @@
 
 #define R11_TASK_INTERVAL       100
 #define R11_SCAN_ADDRESS     	(uint32_t)0x0600
-#define R11_ANALYZE_ADDR  		(uint32_t)0x0601
+/*针对吴优的项目，此处改为0x4941，之前为0x0601*/
+#define R11_ANALYZE_ADDR  		(uint32_t)0x4941
 #define R11_FACE_TYPE_ADDR		(uint32_t)0x0602
 #define cameraRETRY_MAX_COUNT   50    /** 延时时间，单位为美容屏任务执行的周期R11_TASK_INTERVAL，50对应5s */
 #define netWIFI_STATUS_ADDR    	0x06D8
 #define COMIC_STATUS_ADDR       0x06D9     /** 统一的过渡动画使能标志，初始写1 */
 #define cameraNOW_NUM_ADDR      0x06DA
 #if R11_HAIR_ANALYZE_ENABLED
-#define analyzeRESULT_ADDR 		0x3500
-#define analyzeHAIR_RGB_ADDR	0x3500
-#define analyzeSKIN_RGB_ADDR    0x3501
-#define analyzeHAIR_DENSE_LEVEL_ADDR  0x3502
-#define analyzeHAIR_DENSE_PERCENT_ADDR  0x3503
+/*针对吴优的项目，此处改为0x300x，之前为0x350x*/
+#define analyzeRESULT_ADDR 		0x3000
+#define analyzeHAIR_RGB_ADDR	0x3000
+#define analyzeSKIN_RGB_ADDR    0x3001
+#define analyzeHAIR_DENSE_LEVEL_ADDR  0x3002
+#define analyzeHAIR_DENSE_PERCENT_ADDR  0x3003
 
-#define analyzePROCESS_ADDR     0x3504
-#define analyzeWAITING_ADDR     0x3506
-#define analyzeSKIN_AREA_PERCENT_ADDR 0x3507
-#define analyzeTYPE_TITLE_ADDR  0x3509
-#define analyzeFAIL_ADDR        0x350a
-#define analyzeHAIR_LEVEL_ADDR  0x350b
-#define analyzeSKIN_LEVEL_ADDR  0x350c
+#define analyzePROCESS_ADDR     0x3004
+#define analyzeWAITING_ADDR     0x3006
+#define analyzeSKIN_AREA_PERCENT_ADDR 0x3007
+#define analyzeTYPE_TITLE_ADDR  0x3009
+#define analyzeFAIL_ADDR        0x300a
+#define analyzeHAIR_LEVEL_ADDR  0x300b
+#define analyzeSKIN_LEVEL_ADDR  0x300c
+#define analyzeCAMERA_STA_ADDR  0x300e
 
 /*在R11HairAnalyzeCalcResult函数中定义，此处注释用作提示，占用0x40个地址*/
 /*

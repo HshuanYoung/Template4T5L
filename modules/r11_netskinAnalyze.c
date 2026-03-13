@@ -1352,6 +1352,7 @@ static void R11AnalyzeTask(void)
 		if(camera_magnifier.camera_open_flag == 0)
 		{
 			/* 打开摄像头 */
+			analyze.type = 0xe6;
 			write_param[0] = 0xA501;
 			write_dgus_vp(R11_SCAN_ADDRESS,(uint8_t*)&write_param[0],1);
 			camera_magnifier.camera_open_flag = 1;
@@ -1362,6 +1363,8 @@ static void R11AnalyzeTask(void)
 			write_dgus_vp(R11_SCAN_ADDRESS,(uint8_t*)&write_param[0],1);
 			camera_magnifier.camera_open_flag = 0;
 		}
+		write_param[0] = (uint16_t)camera_magnifier.camera_open_flag;
+		write_dgus_vp(analyzeCAMERA_STA_ADDR,(uint8_t*)&write_param[0],1);
 		write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&uint16_port_zero,1);
 	}else if(dgus_value == 0x0003)
 	{
