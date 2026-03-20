@@ -1518,7 +1518,8 @@ static void R11AnalyzeTask(void)
 		}
 		/* 不需要进行延时，每隔100ms运行一次*/
 		__NOP();
-		if(analyze_process == 90)
+		analyze_process = 1;
+		if(analyze_process == 1)
 		{
 			/* 等待分析完成*/
 			if(analyze.res_done_flag == 0)
@@ -1526,18 +1527,17 @@ static void R11AnalyzeTask(void)
 				return;
 			}
 		}
-		analyze_process++;
 		write_dgus_vp(analyzePROCESS_ADDR,(uint8_t*)&analyze_process,1);
 		if(analyze_process == 1)
 		{
 			write_param[0] = 0x01;
 			write_dgus_vp(analyzeWAITING_ADDR,(uint8_t*)&write_param[0],1);
-		}else if(analyze_process == 100)
+		}else
 		{
 			write_param[0] = 0x00;
 			write_dgus_vp(analyzeWAITING_ADDR,(uint8_t*)&write_param[0],1);
 		}
-		if(analyze.res_done_flag == 1 && analyze_process == 100)
+		if(analyze.res_done_flag == 1 && analyze_process == 1)
 		{
 			/* 分析完成*/
 			analyze_process = 0;
