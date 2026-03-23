@@ -1330,8 +1330,6 @@ static void R11HairAnalyzeCalcResult(void)
 
 static void R11AnalyzeTask(void)
 {
-
-
 	const uint16_t uint16_port_zero = 0;
 	static uint16_t analyze_process = 0,start_cap_flag = 0,start_analyze_flag = 0,cap_retry_count = 8;
     uint16_t dgus_value,curr_data_len;
@@ -1355,12 +1353,18 @@ static void R11AnalyzeTask(void)
 			write_param[0] = 0xA501;
 			write_dgus_vp(R11_SCAN_ADDRESS,(uint8_t*)&write_param[0],1);
 			camera_magnifier.camera_open_flag = 1;
+			#if analyzeCAP_DYNAMIC_SIZE
+			analyze.dynamic_camera_sta_flag = 1;
+			#endif /* analyzeCAP_DYNAMIC_SIZE */
 		}else if(camera_magnifier.camera_open_flag == 1)
 		{
 			/* 关闭摄像头*/
 			write_param[0] = 0xA50A;
 			write_dgus_vp(R11_SCAN_ADDRESS,(uint8_t*)&write_param[0],1);
 			camera_magnifier.camera_open_flag = 0;
+			#if analyzeCAP_DYNAMIC_SIZE
+			analyze.dynamic_camera_sta_flag = 0;
+			#endif /* analyzeCAP_DYNAMIC_SIZE */
 		}
 		write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&uint16_port_zero,1);
 	}else if(dgus_value == 0x0003)
@@ -1398,7 +1402,7 @@ static void R11AnalyzeTask(void)
 			r11_send_buf[9] = (uint8_t)camera_magnifier.camera_cap_width;
 			r11_send_buf[10] = ABBR_QUALITY;
 			/** 2026.03.09:增加图片大小的设置 */
-			r11_send_buf[11] = T5L_MAX_PIC_KB;
+			r11_send_buf[11] = T5L_MAX_PIC_KB;        /*原图占用64kb的大小，分析结果图占用非当前显示摄像头的地址*/
 			UartSendData(&Uart_R11,r11_send_buf,12);
 			write_dgus_vp(analyzeFAIL_ADDR,(uint8_t*)&uint16_port_zero,1);
 			analyze_process = 0;
@@ -1417,6 +1421,26 @@ static void R11AnalyzeTask(void)
 		{
 			if(camera_magnifier.camera_num[r11_state.now_choose_pic] == 1)
 			{
+
+				/* 1.先关闭摄像头，*/
+				#if analyzeCAP_DYNAMIC_SIZE
+				if(analyze.dynamic_camera_sta_flag == 1)
+				{
+					R11CameraSendT5lCtrl(cameraMAGNIFIER_MODE,cameraCLOSE_STATUS);
+					delay_ms(200);
+					analyze.dynamic_camera_sta_flag = 0;
+					/*修改分析图通道的起始地址和结束地址为当前没有使用的地址空间*/
+					if(JpegLaber_DGUSII_VP == Icon_Overlay_SP_VP[0])
+					{
+						Icon_Overlay_SP_VP[5] = Icon_Overlay_SP_VP[1];
+						Icon_Overlay_SP_VP[6] = Icon_Overlay_SP_VP[2];
+					}else if(JpegLaber_DGUSII_VP == Icon_Overlay_SP_VP[1])
+					{
+						Icon_Overlay_SP_VP[5] = Icon_Overlay_SP_VP[0];
+						Icon_Overlay_SP_VP[6] = Icon_Overlay_SP_VP[1];
+					}
+				}
+				#endif /* analyzeCAP_DYNAMIC_SIZE */
 				write_dgus_vp(analyzeFAIL_ADDR,(uint8_t*)&uint16_port_zero,1);
 				analyze.res_done_flag = 0;
 				r11_send_buf[0] = 0xAA;
@@ -1754,7 +1778,26 @@ static void R11AnalyzeTask(void)
 			write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&uint16_port_zero,1);
 			write_dgus_vp(analyzePROCESS_ADDR,(uint8_t*)&uint16_port_zero,1);
 		}
-	}else if(dgus_value == 0x0010)
+	}else if(dgus_value == 0x0008)
+	{
+		#if analyzeCAP_DYNAMIC_SIZE
+		if(analyze.dynamic_camera_sta_flag == 0)
+		{
+			/*更新描述指针的地址*/
+			/*由于有可能切换到之前的存储页，0x06对应的地址也需要变化*/
+			Icon_Overlay_SP_VP[5] = 0x3f000;
+			write_param[0] = (uint16_t)Icon_Overlay_SP_VP[5];   
+			write_param[1] = 0x80 | ( Icon_Overlay_SP_VP[5] >> 16 );
+			write_dgus_vp(Icon_Overlay_SP[5]+0x00,(uint8_t*)&write_param[0],1);
+			write_dgus_vp(Icon_Overlay_SP[5]+0x06,(uint8_t*)&write_param[1],1);
+			delay_ms(200);
+			R11CameraSendT5lCtrl(cameraMAGNIFIER_MODE,cameraOPEN_STATUS);
+			analyze.dynamic_camera_sta_flag = 1;
+		}
+		#endif /* analyzeCAP_DYNAMIC_SIZE */
+		write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&uint16_port_zero,1);
+	}
+	else if(dgus_value == 0x0010)
 	{
 		/* 根据输入的路径创建文件夹*/
 		r11_send_buf[0] = 0xaa;
@@ -1822,10 +1865,16 @@ static void R11FaceTypeChooseTask(void)
 		write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t *)&write_param[0],1);
 		R11ChangePictureLocate(mainview.main_x_point,mainview.main_y_point,mainview.main_high,mainview.main_weight,0x02);
 		R11ClearPicture(1);
+		#if analyzeCAP_DYNAMIC_SIZE
 		/* 修改缩略图显示的大小，改到16k+48k大小的显示 */
+		Icon_Overlay_SP_VP[4] = 0x37000;
+		Icon_Overlay_SP_VP[5] = 0x3f000;
+		Icon_Overlay_SP_VP[6] = 0x3f000;
+		#else
 		Icon_Overlay_SP_VP[4] = 0x37000;
 		Icon_Overlay_SP_VP[5] = 0x39000;
 		Icon_Overlay_SP_VP[6] = 0x3f000;
+		#endif /* analyzeCAP_DYNAMIC_SIZE */
 		write_dgus_vp(R11_FACE_TYPE_ADDR,(uint8_t *)&uint16_port_zero,1);
 	}else if(dgus_value > 0x0001 && dgus_value <= 0x0008)
 	{

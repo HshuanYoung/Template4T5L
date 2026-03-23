@@ -90,7 +90,6 @@
 
 #define ABBR_QUALITY            50
 #define THRESH_NUM              45
-#define T5L_MAX_PIC_KB          16
 
 #define R11_TASK_INTERVAL       100
 #define R11_SCAN_ADDRESS     	(uint32_t)0x0600
@@ -333,6 +332,14 @@ typedef struct
 
 
 #if R11_HAIR_ANALYZE_ENABLED
+
+#define analyzeCAP_DYNAMIC_SIZE         1
+
+#if analyzeCAP_DYNAMIC_SIZE
+#define T5L_MAX_PIC_KB          64 
+#elese
+#define T5L_MAX_PIC_KB          16
+#endif
 typedef struct
 {
 	uint8_t red[2];        /* 红色值 0是皮肤，1是头发 */
@@ -362,7 +369,9 @@ typedef struct
 	uint16_t percent;       /* 皮肤分析百分比 */
 	uint16_t res_done_flag; /* 结果完成标志，0未完成，1完成 */
 	uint16_t last_type_page; /* 上次类型页面，用于检测页面切换 */
-
+	#if analyzeCAP_DYNAMIC_SIZE
+	uint16_t dynamic_camera_sta_flag;   /*动态调整时摄像头打开状态*/
+	#endif /* analyzeCAP_DYNAMIC_SIZE */
 }R11_ANALYZE_S;
 #endif /* R11_HAIR_ANALYZE_ENABLED */
 

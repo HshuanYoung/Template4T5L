@@ -51,6 +51,7 @@ extern uint16_t Icon_Overlay_SP_H[10];
 extern uint16_t Locate_arr[10]; 
 extern volatile uint8_t data data_write_f;
 extern volatile uint8_t data Bit8_16_Flag;
+extern volatile uint32_t data JpegLaber_DGUSII_VP;
 
 /**
  * @enum VIDEO_INIT_PROCESS
