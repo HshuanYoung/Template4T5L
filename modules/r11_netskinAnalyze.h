@@ -104,20 +104,21 @@
 #if R11_HAIR_ANALYZE_ENABLED
 /*针对吴优的项目，此处改为0x300x，之前为0x350x*/
 #define analyzeRESULT_ADDR 		0x3000
-#define analyzeHAIR_RGB_ADDR	0x3000
-#define analyzeSKIN_RGB_ADDR    0x3001
+#define analyzeHAIR_LEVEL_ADDR  0x3000
+#define analyzeSKIN_LEVEL_ADDR  0x3001
 #define analyzeHAIR_DENSE_LEVEL_ADDR  0x3002
 #define analyzeHAIR_DENSE_PERCENT_ADDR  0x3003
 
 #define analyzePROCESS_ADDR     0x3004
+   /*动画图标，占用了两个字，0x3005被占用了*/
 #define analyzeWAITING_ADDR     0x3006
 #define analyzeSKIN_AREA_PERCENT_ADDR 0x3007
 #define analyzeTYPE_TITLE_ADDR  0x3009
 #define analyzeFAIL_ADDR        0x300a
-#define analyzeHAIR_LEVEL_ADDR  0x300b
-#define analyzeSKIN_LEVEL_ADDR  0x300c
+#define analyzeHAIR_RGB_ADDR	0x300b
+#define analyzeSKIN_RGB_ADDR    0x300c
 #define analyzeCAMERA_STA_ADDR  0x300e
-
+#define analyzeCAMERA_IS_OPEN_ADDR     0x300f
 /*在R11HairAnalyzeCalcResult函数中定义，此处注释用作提示，占用0x40个地址*/
 /*
 #define COLOR_RECT_ADDR   0x3510
