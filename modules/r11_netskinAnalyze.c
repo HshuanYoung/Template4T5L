@@ -927,9 +927,6 @@ static void R11ValueScanTask(void)
     const uint16_t uint16_port_zero = 0;
     uint16_t dgus_value;
 	uint16_t write_param[10];
-    #if sysDGUS_AUTO_UPLOAD_ENABLED || uartTA_PROTOCOL_ENABLED
-    DgusAutoUpload();
-    #endif /* sysDGUS_AUTO_UPLOAD_ENABLED ||uartTA_PROTOCOL_ENABLED */
 
     read_dgus_vp(R11_SCAN_ADDRESS, (uint8_t *)&dgus_value, 1);
     if((dgus_value>>8) == 0xA5)
@@ -1209,7 +1206,7 @@ static void R11HairAnalyzeCalcResult(void)
 	#define HAIR_ANALYZE_LEVEL_ENABLED 1          /* 是否采用皮肤颜色分级模式 0采用rgb24转16的原始颜色，1采用皮肤和头发分级模式*/
 	/* RGB24转RGB16宏定义 565*/
 	#define RGB24_2_RGB16(r,g,b)  ( (((uint16_t)r>>3)<<11) | ((g>>2)<<5) | (b>>3) )
-	uint16_t hair_level_sum,skin_level_sum,i;
+	uint16_t hair_level_sum,skin_level_sum,i,percent_temp;
 	#if (HAIR_ANALYZE_LEVEL_ENABLED == 0)
 	uint8_t color_rect_arr[26];
 	#define COLOR_RECT_ADDR   0x3510
@@ -1322,11 +1319,11 @@ static void R11HairAnalyzeCalcResult(void)
 		write_dgus_vp(COLOR_RECT_ADDR,color_rect_arr,13);
 	}
 	#endif /*HAIR_ANALYZE_LEVEL_ENABLED */
-	analyze.percent = analyze.percent / 10;
-	if(analyze.percent > 30)
+	percent_temp = analyze.percent / 10;
+	if(percent_temp > 30)
 	{
 		analyze.hair_analyze.hair_dense = 3;
-	}else if(analyze.percent > 10 && analyze.percent <= 30)
+	}else if(percent_temp > 10 && percent_temp <= 30)
 	{
 		analyze.hair_analyze.hair_dense = 2;
 	}else
@@ -1334,7 +1331,7 @@ static void R11HairAnalyzeCalcResult(void)
 		analyze.hair_analyze.hair_dense = 1;
 	}
 	write_dgus_vp(analyzeHAIR_DENSE_LEVEL_ADDR,(uint8_t*)&analyze.hair_analyze.hair_dense,1);
-	write_dgus_vp(analyzeHAIR_DENSE_PERCENT_ADDR,(uint8_t*)&analyze.percent,1);
+	write_dgus_vp(analyzeHAIR_DENSE_PERCENT_ADDR,(uint8_t*)&percent_temp,1);
 	for(i=0;i<3;i++)
 	{
 		/* 自动上传时*/
@@ -1353,9 +1350,6 @@ static void R11AnalyzeTask(void)
     uint16_t dgus_value,curr_data_len;
 	uint8_t r11_send_buf[100],file_name_arr[64];
 	uint16_t write_param[10];
-    #if sysDGUS_AUTO_UPLOAD_ENABLED || uartTA_PROTOCOL_ENABLED
-    DgusAutoUpload();
-    #endif /* sysDGUS_AUTO_UPLOAD_ENABLED ||uartTA_PROTOCOL_ENABLED */
 
     read_dgus_vp(R11_ANALYZE_ADDR, (uint8_t *)&dgus_value, 1);
 	if(dgus_value == 0x0001)
@@ -1396,7 +1390,9 @@ static void R11AnalyzeTask(void)
 			r11_state.now_choose_pic = 0;
 			camera_magnifier.camera_num[r11_state.now_choose_pic] = 1;
 			write_dgus_vp(cameraNOW_NUM_ADDR,(uint8_t*)&r11_state.now_choose_pic,1);
-			write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&uint16_port_zero,1);
+			/*拍照和分析做到一起，*/
+			write_param[0] = 0x0033;
+			write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&write_param[0],1);
 			R11ClearHairAnalyzeResult();
 			r11_state.pic_capture_flag = 0;
 			return;
@@ -1425,7 +1421,7 @@ static void R11AnalyzeTask(void)
 			start_cap_flag = 0;
 			start_analyze_flag = 0;
 		}
-	}else if(dgus_value == 0x0003)
+	}else if(dgus_value == 0x0033)
 	{
 		/* 头皮检测分析 */
 		if(start_cap_flag != 0)
@@ -1464,7 +1460,16 @@ static void R11AnalyzeTask(void)
 				write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&write_param[0],1);
 			}
 		}
-
+		if(analyze.res_done_flag == 1)
+		{
+			analyze_process = 0;
+			write_dgus_vp(analyzePROCESS_ADDR,(uint8_t*)&analyze_process,1);
+			write_param[0] = 0x00;
+			write_dgus_vp(analyzeWAITING_ADDR,(uint8_t*)&write_param[0],1);
+			write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&uint16_port_zero,1);
+		}
+	}else if(dgus_value == 0x0003)
+	{
 		if(analyze.res_done_flag == 1)
 		{
 			/* 分析完成*/
@@ -1475,11 +1480,13 @@ static void R11AnalyzeTask(void)
 			write_dgus_vp(analyzePROCESS_ADDR,(uint8_t*)&analyze_process,1);
 			start_cap_flag = 0;
 			start_analyze_flag = 0;
+			analyze.res_done_flag = 0;
 			write_param[0] = 0x0001;
 			write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&write_param[0],1);
 		}else
 		{
-			return;
+			R11HairAnalyzeCalcResult();
+			write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&uint16_port_zero,1);
 		}
 	}else if(dgus_value == 0x0005)
 	{
@@ -1813,9 +1820,6 @@ static void R11FaceTypeChooseTask(void)
 {
 	const uint16_t uint16_port_zero = 0;
 	uint16_t dgus_value,write_param[10],zero_arr[32]={0};
-	#if sysDGUS_AUTO_UPLOAD_ENABLED || uartTA_PROTOCOL_ENABLED
-	DgusAutoUpload();
-	#endif /* sysDGUS_AUTO_UPLOAD_ENABLED ||uartTA_PROTOCOL_ENABLED */
 
 	read_dgus_vp(R11_FACE_TYPE_ADDR, (uint8_t *)&dgus_value, 1);
 	if(dgus_value == 0x0001)
@@ -2137,6 +2141,9 @@ void UartR11UserBeautyProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
  */
 void R11NetskinAnalyzeTask(void)
 {
+	#if sysDGUS_AUTO_UPLOAD_ENABLED || uartTA_PROTOCOL_ENABLED
+    DgusAutoUpload();
+    #endif /* sysDGUS_AUTO_UPLOAD_ENABLED ||uartTA_PROTOCOL_ENABLED */
     /** 在重启之后，R11RestartInit只运行一次，R11VideoPlayerProcess会一直运行直到完成 */
     if(r11_state.restart_flag == 1)
     {
