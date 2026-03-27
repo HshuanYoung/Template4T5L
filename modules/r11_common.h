@@ -97,6 +97,13 @@ extern VIDEO_INIT_PROCESS video_init_process;
 #define AUTOPLAY_MODE_ADDR      	0x06D3
 #define R11_RESTART_FLAG_ADDR      	0x06D4
 #define BIG_SMALL_FLAG_ADDR      	0x06D5
+
+
+#define MP4_FILENAME_SP_LIST1       0x3E00
+#define MP4_FILENAME_SP_LIST2       0x3E20
+#define MP4_FILENAME_SP_LIST3       0x3E40
+#define MP4_FILENAME_SP_LIST4       0x3E60
+#define MP4_FILENAME_SP_LIST5       0x3E80
 /**
  * 在r11_netskinAnalyze.c中定义，此处用于区分，防止占用
 #define netWIFI_STATUS_ADDR     0x06D8
@@ -107,8 +114,8 @@ extern VIDEO_INIT_PROCESS video_init_process;
 
 /** 视频播放指令定义区域 */
 #define cmdMP4_UPDATEFILE         	0x61
-#define cmdMP4_PREVFILE           	0x62
-#define cmdMP4_NEXTFILE           	0x63
+#define cmdMP4_PREVFILE           	0x63
+#define cmdMP4_NEXTFILE           	0x62
 #define cmdMP4_PLAY                	0x64
 #define cmdMP4_PAUSE               	0x65
 #define cmdMP4_REPLAY              	0x66
@@ -119,6 +126,7 @@ extern VIDEO_INIT_PROCESS video_init_process;
 #define cmdCHECK_STATUS_NET         0x85
 #define cmdCHECK_STATUS_DEVICE      0x88
 #define cmdMP4_LOOP_MODE_SET	   	0x90
+#define cmdMP4_NOW_PLAY_NUMBER      0xb1
 #define cmdWIFI_SCAN                0xc0
 #define cmdWIFI_CONNECT             0xc1
 #define cmdSET_TERNARY_CODE         0xf0
@@ -148,8 +156,8 @@ extern VIDEO_INIT_PROCESS video_init_process;
 #define keyMP4_SINGLE_LOOP_MODE   	0x0037
 #define keyMP4_ALL_LOOP_MODE      	0x0038
 #define keyMP4_CLEAR_PAGE           0x00ff
-#define keyMP4_NEXTFILE            	0x0002
-#define keyMP4_PREVFILE            	0x0001
+#define keyMP4_NEXTFILE            	0x0001
+#define keyMP4_PREVFILE            	0x0002
 
 /** wifi连接键值定义区域 */
 #define keyWIFI_LIST1              	0xaf01
@@ -198,6 +206,9 @@ typedef struct play_state
 	uint8_t Document_type;         /**< 文件类型（0:MP4 1:MP3 2:JPG） */
 	uint8_t page_mp4_nums;         /**< 当前页面视频文件数量 */
 	uint16_t serial;               /**< 当前播放序号 */
+	uint16_t total_serial;         /**< 视频文件总数量 */
+	uint16_t now_play_serial;     /**< 当前播放视频的序号 */
+	uint16_t now_play_page;       /**< 当前播放视频所在页面 */
 } PLAYER_T;
 
 extern uint16_t mp4_name_len[5];
