@@ -501,6 +501,8 @@ void R11VideoPlayerProcess(void)
             write_dgus_vp(MP4_NOW_PLAY_NAME_ADDR,(uint8_t*)&mp4_name[r11_player.serial][0], MAX_MP3_NAME_LEN>>1);
             T5lSendUartDataToR11(cmdMP4_PLAY, mp4_name[r11_player.serial]);
             video_init_process = VIDEO_PROCESS_SET_LOOP;
+            /*对第一个结果进行高亮显示*/
+            write_dgus_vp(MP4_FILENAME_SP_LIST1 + (r11_player.now_play_serial % 5) * 0x20 + 0x03,(uint8_t*)&color_red,1);
         }else{
             search_retry_count --;
             if(search_retry_count == 0)
@@ -1176,6 +1178,11 @@ void UartR11UserVideoProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
             r11_player.now_play_serial = (uint16_t)frame[5];
             /* 在播放时或者循环时会高亮显示对应的视频名称*/
             R11PlayHighlightVideo();
+            break;
+        case cmdMP4_STORAGE_MEDIUM_STATUS:
+            #if STORAGE_DISCONN_PAGE
+            SwitchPageById(STORAGE_DISCONN_PAGE);
+            #endif /* STORAGE_DISCONN_PAGE */
             break;
         default:
             break;
