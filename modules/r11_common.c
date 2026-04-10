@@ -316,6 +316,12 @@ void R11DebugValueHandle(uint16_t dgus_value)
             data_write_f = 0;
             EX1_Start();
         }
+    }else if(dgus_value == 0x11e)
+    {
+        R11CameraSendT5lCtrl(cameraMAGNIFIER_MODE,cameraCLOSE_STATUS);
+    }else if(dgus_value == 0x11f)
+    {
+        R11CameraSendT5lCtrl(cameraMAGNIFIER_MODE,cameraOPEN_STATUS);
     }
 }
 

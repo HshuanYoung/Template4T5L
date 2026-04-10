@@ -261,7 +261,7 @@ static void R11CameraOpenThreadCtrl(uint8_t camera_mode,uint8_t camera_status,ui
 /*
  * @brief 摄像头发送T5L控制指令。
  */
-static void R11CameraSendT5lCtrl(uint8_t camera_mode,uint8_t send_flag)
+void R11CameraSendT5lCtrl(uint8_t camera_mode,uint8_t send_flag)
 {
     uint8_t r11_send_buf[25];
 	r11_send_buf[0] = 0xaa;

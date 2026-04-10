@@ -467,6 +467,8 @@ void R11NetskinAnalyzeTask(void);
  */
 void UartR11UserBeautyProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len);
 
+void R11CameraSendT5lCtrl(uint8_t camera_mode,uint8_t send_flag);
+
 #endif /* sysBEAUTY_MODE_ENABLED */
 
 #endif /* R11_NETSKINANALYZE_H */
