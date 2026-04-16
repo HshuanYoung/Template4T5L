@@ -125,7 +125,7 @@ void R11ChangePictureLocate(uint16_t x_point,uint16_t y_point,uint16_t high,uint
 /** 遍历len长度的数组，遇到0x00，或者0xff，或者'\0',将剩下的数据替换成0x00
  * 如果前几个字符不是/mnt/UDISK/和/mnt/SDCARD/和/mnt/exUDISK/,则替换为/mnt/UDISK/tmp
  */
-void FormatArrayToFullPath(uint8_t *buf, uint8_t len)
+void FormatArrayToFullPath(uint8_t *buf, uint8_t len,uint8_t pic_num)
 {
     uint8_t i;
     if (memcmp(buf, "/mnt/", 5) != 0)
@@ -134,11 +134,13 @@ void FormatArrayToFullPath(uint8_t *buf, uint8_t len)
         buf[14] = 0x00;
     }
 
-    for (i = 0; i < len; i++)
+    for (i = 0; i < len-5; i++)
     {
         if (buf[i] == 0x00 || buf[i] == 0xff || buf[i] == '\0')
         {
-            memset(&buf[i], 0x00, len - i);
+            buf[i] = pic_num + '0';
+            memcpy(&buf[i+1], ".jpg", 5);
+            memset(&buf[i+5], 0x00, len - i-5);
             break;
         }
     }

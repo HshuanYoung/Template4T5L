@@ -238,8 +238,10 @@ void T5lJpegInit(void);
 /**
  * 遍历len长度的数组，遇到0x00，或者0xff，或者'\0',将剩下的数据替换成0x00
  * 如果前几个字符不是/mnt/UDISK/或者/mnt/SDCARD/或者/mnt/exUDISK/,则替换为/mnt/UDISK/tmp
- */
-void FormatArrayToFullPath(uint8_t *buf, uint8_t len);
+ * 并在后面不上编号.jpg，为1-6
+ *  
+*/
+void FormatArrayToFullPath(uint8_t *buf, uint8_t len,uint8_t pic_num);
 
 
 /**
