@@ -96,6 +96,9 @@
 #define VIDEO_FULL_ADDR         0x05c0
 #define FOLDER_PAGE_ADDR        0x05c1
 #define FOLDER_PATH_ADDR        0x05c2
+#define CAMERA_SAVE_HIGH_ADDR   0x05c3
+#define CAMERA_SAVE_WIDTH_ADDR  0x05c4
+
 
 #define ABBR_QUALITY            50
 #define THRESH_NUM              45
@@ -177,6 +180,8 @@ typedef struct
 	uint16_t camera_show_width;  /* 摄像头显示宽 */
     uint16_t camera_cap_high;  /* 摄像头拍照高，这个是针对缩略图的大小 */
 	uint16_t camera_cap_width;  /* 摄像头拍照宽 */
+	uint16_t camera_save_high;  /* 摄像头保存高，这个是针对r11保存的图像大小 */
+	uint16_t camera_save_width;  /* 摄像头保存宽 */
 	uint16_t camera_col_high;  /* 摄像头采集高，这个是针对r11采集的大图的分辨率 */
 	uint16_t camera_col_width;  /* 摄像头采集宽 */
     uint16_t camera_send_high;   /* 发给r11采集的大小，这个是针对r11发给云端的图像大小 */
