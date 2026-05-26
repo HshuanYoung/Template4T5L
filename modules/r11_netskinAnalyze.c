@@ -1183,6 +1183,8 @@ static void R11ClearHairAnalyzeResult(void)
 	write_dgus_vp(analyzeHAIR_DENSE_ADDR,(uint8_t*)&zero_value,1);
 	write_dgus_vp(analyzeHAIR_LEVEL_ADDR,(uint8_t*)&zero_value,1);
 	write_dgus_vp(analyzeSKIN_LEVEL_ADDR,(uint8_t*)&zero_value,1);
+	write_dgus_vp(analyzeHAIR_THICKNESS_ADDR,(uint8_t*)&zero_value,1);
+	memset(&analyze.skin_analyze,0,sizeof(analyze.skin_analyze));
 }
 
 
@@ -1213,10 +1215,11 @@ static void T5lUartSendAnalyzeResult(uint16_t addr,uint8_t len)
 
 static void R11HairAnalyzeCalcResult(void)
 {
+	uint16_t dense_level;
 	#define HAIR_ANALYZE_LEVEL_ENABLED 1          /* 是否采用皮肤颜色分级模式 0采用rgb24转16的原始颜色，1采用皮肤和头发分级模式*/
 	/* RGB24转RGB16宏定义 565*/
 	#define RGB24_2_RGB16(r,g,b)  ( ((r>>3)<<11) | ((g>>2)<<5) | (b>>3) )
-	uint16_t hair_level_sum,skin_level_sum,i;
+	uint16_t i;
 	#if (HAIR_ANALYZE_LEVEL_ENABLED == 0)
 	uint8_t color_rect_arr[26];
 	#define COLOR_RECT_ADDR   0x3510
@@ -1225,35 +1228,7 @@ static void R11HairAnalyzeCalcResult(void)
 	analyze.hair_analyze.rgb16[1] = RGB24_2_RGB16(analyze.hair_analyze.red[1],analyze.hair_analyze.green[1],analyze.hair_analyze.blue[1]);
 	write_dgus_vp(analyzeHAIR_RGB_ADDR,(uint8_t*)analyze.hair_analyze.rgb16,2);
 	#if HAIR_ANALYZE_LEVEL_ENABLED
-	hair_level_sum = (analyze.hair_analyze.red[0] + analyze.hair_analyze.green[0] + analyze.hair_analyze.blue[0]) / 3;
-	if(hair_level_sum > 200)
-	{
-		analyze.hair_analyze.hair_level = 1;
-	}else if(hair_level_sum > 80 && hair_level_sum <= 200)
-	{
-		analyze.hair_analyze.hair_level = 2;
-	}else if(hair_level_sum > 50 && hair_level_sum <= 80)
-	{
-		analyze.hair_analyze.hair_level = 3;
-	}else if(hair_level_sum <= 50)
-	{
-		analyze.hair_analyze.hair_level = 4;
-	}
 	write_dgus_vp(analyzeHAIR_LEVEL_ADDR,(uint8_t*)&analyze.hair_analyze.hair_level,1);
-	skin_level_sum = (analyze.hair_analyze.red[1] + analyze.hair_analyze.green[1] + analyze.hair_analyze.blue[1]) / 3;
-	if(skin_level_sum > 245)
-	{
-		analyze.hair_analyze.skin_level = 1;
-	}else if(skin_level_sum > 140 && skin_level_sum <= 245)
-	{
-		analyze.hair_analyze.skin_level = 2;
-	}else if(skin_level_sum > 80 && skin_level_sum <= 140)
-	{
-		analyze.hair_analyze.skin_level = 3;
-	}else if(skin_level_sum <= 80)
-	{
-		analyze.hair_analyze.skin_level = 4;
-	}
 	write_dgus_vp(analyzeSKIN_LEVEL_ADDR,(uint8_t*)&analyze.hair_analyze.skin_level,1);
 	#else   /*HAIR_ANALYZE_LEVEL_ENABLED 启用皮肤和头发颜色分级模式 */
 	if(screen_opt.screen_ratio == 0)
@@ -1320,17 +1295,19 @@ static void R11HairAnalyzeCalcResult(void)
 		write_dgus_vp(COLOR_RECT_ADDR,color_rect_arr,13);
 	}
 	#endif /*HAIR_ANALYZE_LEVEL_ENABLED */
-	if(analyze.percent > 300)
+	//稀疏（＜15根/cm²）、中等（15~35根/cm²）、浓密（＞35根/cm²）
+	if(analyze.hair_analyze.hair_num > 35)
 	{
-		analyze.hair_analyze.hair_dense = 3;
-	}else if(analyze.percent > 100 && analyze.percent <= 300)
+		dense_level = 3;
+	}else if(analyze.hair_analyze.hair_num >= 15)
 	{
-		analyze.hair_analyze.hair_dense = 2;
+		dense_level = 2;
 	}else
 	{
-		analyze.hair_analyze.hair_dense = 1;
+		dense_level = 1;
 	}
-	write_dgus_vp(analyzeHAIR_DENSE_ADDR,(uint8_t*)&analyze.hair_analyze.hair_dense,1);
+	write_dgus_vp(analyzeHAIR_DENSE_ADDR,(uint8_t*)&dense_level,1);
+	write_dgus_vp( analyzeHAIR_THICKNESS_ADDR,(uint8_t*)&analyze.hair_analyze.hair_thickness,1);
 	for(i=0;i<3;i++)
 	{
 		T5lUartSendAnalyzeResult(analyzeRESULT_ADDR + i,1);
@@ -1863,6 +1840,39 @@ static void R11FaceTypeChooseTask(void)
 
 #endif /* R11_HAIR_ANALYZE_ENABLED */
 
+/*
+ * @brief 解析携带分级结果的毛发分析返回帧。
+ * @param frame  接收数据帧
+ * @param len		 数据帧长度
+ */
+static void AnalyzeDecode(const uint8_t *frame,uint16_t len)
+{
+	if(frame == NULL || len < 14)
+	{
+		return;
+	}
+	//percent + skinRGB + hairRGB兼容旧协议
+	analyze.percent = (frame[6] << 8) | frame[7];
+	//skinRGB
+	analyze.hair_analyze.red[0] = frame[8];
+	analyze.hair_analyze.green[0] = frame[9];
+	analyze.hair_analyze.blue[0] = frame[10];
+	//hairRGB
+	analyze.hair_analyze.red[1] = frame[11];
+	analyze.hair_analyze.green[1] = frame[12];
+	analyze.hair_analyze.blue[1] = frame[13];
+
+	analyze.hair_analyze.hair_level = 0;
+	analyze.hair_analyze.skin_level = 0;
+	if(len >= 17)
+	{
+		analyze.hair_analyze.hair_level = frame[14];  //毛发颜色分级结果
+		analyze.hair_analyze.skin_level = frame[15];	//皮肤 Fitzpatrick 6 级分型结果
+		analyze.hair_analyze.hair_thickness = frame[16]; //毛发平均直径，单位um
+		analyze.hair_analyze.hair_num = frame[17];
+	}
+	analyze.res_done_flag = 1;
+}
 
 /*
  * @brief 处理美容协议帧。
@@ -2057,14 +2067,7 @@ void UartR11UserBeautyProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
 			case analyzeHAIR_RESULT:
 				if(frame[6] != 0 || frame[7] != 0)
 				{
-					analyze.percent = (frame[6]<<8)|frame[7];
-					analyze.hair_analyze.red[0] = frame[8];
-					analyze.hair_analyze.green[0] = frame[9];
-					analyze.hair_analyze.blue[0] = frame[10];
-					analyze.hair_analyze.red[1] = frame[11];
-					analyze.hair_analyze.green[1] = frame[12];
-					analyze.hair_analyze.blue[1] = frame[13];
-					analyze.res_done_flag = 1;
+					AnalyzeDecode(frame,len);
 				}else
 				{
 					write_param[0] = 1;

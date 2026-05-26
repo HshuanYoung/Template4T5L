@@ -123,15 +123,16 @@
 #define analyzeSKIN_AREA_PERCENT_ADDR 0x3507
 #define analyzeTYPE_TITLE_ADDR  0x3509
 #define analyzeFAIL_ADDR        0x350a
-#define analyzeHAIR_LEVEL_ADDR  0x350b
-#define analyzeSKIN_LEVEL_ADDR  0x350c
+#define analyzeSKIN_LEVEL_ADDR  0x350b
+#define analyzeHAIR_LEVEL_ADDR  0x350c
+#define analyzeHAIR_THICKNESS_ADDR  0x350d
 
 /*在R11HairAnalyzeCalcResult函数中定义，此处注释用作提示，占用0x40个地址*/
 /*
 #define COLOR_RECT_ADDR   0x3510
 */
 #define analyzeSKIN_SUGGESTION_ADDR 0x3550
-#define analyzeFILE_PATH_ADDR       0x3570
+#define analyzeFILE_PATH_ADDR       0x3580
 
 #define analyzeHAIR_ANA_PAGE        220
 #define analyzeSKIN_ANA_PAGE        211
@@ -169,6 +170,7 @@
 #define analyzeSKIN_TYPE        0xe7
 #define analyzeHAIR_RESULT      0xf6
 #define analyzeSKIN_RESULT      0xf7
+
 
 
 /** 美容屏相关结构体定义区域 */
@@ -355,9 +357,10 @@ typedef struct
 
 	uint16_t skin_color;   /* 皮肤颜色值 */
 	uint16_t hair_color;   /* 发色值 */
-	uint16_t hair_level;   /* 头发颜色等级*/
+	uint16_t hair_level;   /* 毛发颜色等级*/
 	uint16_t skin_level;  /* 皮肤颜色等级*/
-	uint16_t hair_dense;   /* 发量值 */
+	uint16_t hair_num;   /* 毛发数量 */
+	uint16_t hair_thickness;   /* 毛发平均直径 */
 
 
 }HAIR_S;
