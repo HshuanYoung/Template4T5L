@@ -1215,7 +1215,8 @@ static void T5lUartSendAnalyzeResult(uint16_t addr,uint8_t len)
 
 static void R11HairAnalyzeCalcResult(void)
 {
-	uint16_t dense_level;
+	uint16_t dense_level, thick_level;
+	uint16_t hair_area; //1cm2面积毛发数量
 	#define HAIR_ANALYZE_LEVEL_ENABLED 1          /* 是否采用皮肤颜色分级模式 0采用rgb24转16的原始颜色，1采用皮肤和头发分级模式*/
 	/* RGB24转RGB16宏定义 565*/
 	#define RGB24_2_RGB16(r,g,b)  ( ((r>>3)<<11) | ((g>>2)<<5) | (b>>3) )
@@ -1296,18 +1297,32 @@ static void R11HairAnalyzeCalcResult(void)
 	}
 	#endif /*HAIR_ANALYZE_LEVEL_ENABLED */
 	//稀疏（＜15根/cm²）、中等（15~35根/cm²）、浓密（＞35根/cm²）
-	if(analyze.hair_analyze.hair_num > 35)
+	hair_area = analyze.hair_analyze.hair_num * 8;  
+	if(hair_area > 35)
 	{
 		dense_level = 3;
-	}else if(analyze.hair_analyze.hair_num >= 15)
+	}else if(hair_area >= 15)
 	{
 		dense_level = 2;
 	}else
 	{
 		dense_level = 1;
 	}
+	//粗硬（＞100um）、中等（60~100um）、细软（＜60um）
+	if(analyze.hair_analyze.hair_thickness > 100)
+	{
+		thick_level = 3;
+	}
+	else if(analyze.hair_analyze.hair_thickness >= 60)
+	{
+		thick_level = 2;
+	}
+	else
+	{
+		thick_level = 1;
+	}
 	write_dgus_vp(analyzeHAIR_DENSE_ADDR,(uint8_t*)&dense_level,1);
-	write_dgus_vp( analyzeHAIR_THICKNESS_ADDR,(uint8_t*)&analyze.hair_analyze.hair_thickness,1);
+	write_dgus_vp( analyzeHAIR_THICKNESS_ADDR,(uint8_t*)&thick_level,1);
 	for(i=0;i<3;i++)
 	{
 		T5lUartSendAnalyzeResult(analyzeRESULT_ADDR + i,1);
@@ -1449,7 +1464,7 @@ static void R11AnalyzeTask(void)
 			write_param[0] = 0x00;
 			write_dgus_vp(analyzeWAITING_ADDR,(uint8_t*)&write_param[0],1);
 		}
-		if(analyze.res_done_flag == 1 && analyze_process == 100)
+		if(analyze.res_done_flag == 1)
 		{
 			/* 分析完成*/
 			R11HairAnalyzeCalcResult();
