@@ -127,6 +127,12 @@
 #define analyzeHAIR_LEVEL_ADDR  0x350c
 #define analyzeHAIR_THICKNESS_ADDR  0x350d
 
+/* 推荐能量密度从0x35a0开始*/
+//能量调节系数
+#define analyzeENERGY_K_TOTAL_ADDR 0x35a0
+#define analyzeENERGY_E_FINAL_ADDR 0x35a2
+#define analyzeENERGY_F_FINAL_ADDR 0x35a4
+
 /*在R11HairAnalyzeCalcResult函数中定义，此处注释用作提示，占用0x40个地址*/
 /*
 #define COLOR_RECT_ADDR   0x3510

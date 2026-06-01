@@ -127,8 +127,8 @@ typedef            long			int32_t;
 
 #if sysBEAUTY_MODE_ENABLED
 #define Uart_R11                     Uart5
-#define R11_WIFI_ENABLED              1
-#define R11_HAIR_ANALYZE_ENABLED      0          /**< 头皮检测分析功能使能标志 */
+#define R11_WIFI_ENABLED              0
+#define R11_HAIR_ANALYZE_ENABLED      1          /**< 头皮检测分析功能使能标志 */
 #endif /* sysBEAUTY_MODE_ENABLED */
 
 #if sysADVERTISE_MODE_ENABLED
@@ -230,7 +230,7 @@ extern uint32_t sysFCLK;
  * @brief UART通用帧缓冲区大小
  * @details 所有UART接口共用的数据帧缓冲区大小，单位为字节
  */
-#define uartUART_COMMON_FRAME_SIZE     4500
+#define uartUART_COMMON_FRAME_SIZE     2000
 
 /**
  * @brief Modbus协议支持使能标志
