@@ -9,6 +9,14 @@
 
 
 #if sysBEAUTY_MODE_ENABLED
+
+
+#define cameraLIGHT_IO_CONTROL_ENABLED         0
+#if cameraLIGHT_IO_CONTROL_ENABLED
+#define cameraLIGHT_IO_CONTROL_NUM             P06
+#define cameraLIGHT_IO_CONTROL_NUM2            P07
+#endif
+
 /** 从lib文件读取的定义区域 */
 #define PIXELS_SET_ADDR         0x0580      
 #define FCLK_DIV_ADDR           0x0581
@@ -87,6 +95,9 @@
 #define VIDEO_FULL_ADDR         0x05c0
 #define FOLDER_PAGE_ADDR        0x05c1
 #define FOLDER_PATH_ADDR        0x05c2
+#define CAMERA_SAVE_HIGH_ADDR   0x05c3
+#define CAMERA_SAVE_WIDTH_ADDR  0x05c4
+
 
 #define ABBR_QUALITY            50
 #define THRESH_NUM              45
@@ -110,6 +121,21 @@
 #define analyzeHAIR_DENSE_PERCENT_ADDR  0x3003
 
 #define analyzePROCESS_ADDR     0x3004
+#define analyzeWAITING_ADDR     0x3006
+#define analyzeSKIN_AREA_PERCENT_ADDR 0x3007
+#define analyzeTYPE_TITLE_ADDR  0x3009
+#define analyzeFAIL_ADDR        0x300a
+#define analyzeSKIN_LEVEL_ADDR  0x300b
+#define analyzeHAIR_LEVEL_ADDR  0x300c
+#define analyzeHAIR_THICKNESS_ADDR  0x300d
+
+/* 推荐能量密度从0x35a0开始*/
+//能量调节系数
+#define analyzeENERGY_K_TOTAL_ADDR 0x35a0
+#define analyzeENERGY_E_FINAL_ADDR 0x35a2
+#define analyzeENERGY_F_FINAL_ADDR 0x35a4
+
+#define analyzePROCESS_ADDR     0x3004
    /*动画图标，占用了两个字，0x3005被占用了*/
 #define analyzeWAITING_ADDR     0x3006
 #define analyzeSKIN_AREA_PERCENT_ADDR 0x3007
@@ -124,7 +150,7 @@
 #define COLOR_RECT_ADDR   0x3510
 */
 #define analyzeSKIN_SUGGESTION_ADDR 0x3550
-#define analyzeFILE_PATH_ADDR       0x3570
+#define analyzeFILE_PATH_ADDR       0x3580
 
 #define analyzeHAIR_ANA_PAGE        220
 #define analyzeSKIN_ANA_PAGE        211
@@ -164,6 +190,7 @@
 #define analyzeSKIN_RESULT      0xf7
 
 
+
 /** 美容屏相关结构体定义区域 */
 typedef struct
 {
@@ -173,6 +200,8 @@ typedef struct
 	uint16_t camera_show_width;  /* 摄像头显示宽 */
     uint16_t camera_cap_high;  /* 摄像头拍照高，这个是针对缩略图的大小 */
 	uint16_t camera_cap_width;  /* 摄像头拍照宽 */
+	uint16_t camera_save_high;  /* 摄像头保存高，这个是针对r11保存的图像大小 */
+	uint16_t camera_save_width;  /* 摄像头保存宽 */
 	uint16_t camera_col_high;  /* 摄像头采集高，这个是针对r11采集的大图的分辨率 */
 	uint16_t camera_col_width;  /* 摄像头采集宽 */
     uint16_t camera_send_high;   /* 发给r11采集的大小，这个是针对r11发给云端的图像大小 */
@@ -346,9 +375,10 @@ typedef struct
 
 	uint16_t skin_color;   /* 皮肤颜色值 */
 	uint16_t hair_color;   /* 发色值 */
-	uint16_t hair_level;   /* 头发颜色等级*/
+	uint16_t hair_level;   /* 毛发颜色等级*/
 	uint16_t skin_level;  /* 皮肤颜色等级*/
-	uint16_t hair_dense;   /* 发量值 */
+	uint16_t hair_num;   /* 毛发数量 */
+	uint16_t hair_thickness;   /* 毛发平均直径 */
 
 
 }HAIR_S;
@@ -462,6 +492,8 @@ void R11NetskinAnalyzeTask(void);
  * @note 用于接收和解析R11相关协议。
  */
 void UartR11UserBeautyProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len);
+
+void R11CameraSendT5lCtrl(uint8_t camera_mode,uint8_t send_flag);
 
 #endif /* sysBEAUTY_MODE_ENABLED */
 

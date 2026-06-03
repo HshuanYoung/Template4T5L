@@ -124,7 +124,7 @@ void R11ChangePictureLocate(uint16_t x_point,uint16_t y_point,uint16_t high,uint
 /** 遍历len长度的数组，遇到0x00，或者0xff，或者'\0',将剩下的数据替换成0x00
  * 如果前几个字符不是/mnt/UDISK/和/mnt/SDCARD/和/mnt/exUDISK/,则替换为/mnt/UDISK/tmp
  */
-void FormatArrayToFullPath(uint8_t *buf, uint8_t len)
+void FormatArrayToFullPath(uint8_t *buf, uint8_t len,uint8_t pic_num)
 {
     uint8_t i;
     if (memcmp(buf, "/mnt/", 5) != 0)
@@ -133,11 +133,14 @@ void FormatArrayToFullPath(uint8_t *buf, uint8_t len)
         buf[14] = 0x00;
     }
 
-    for (i = 0; i < len; i++)
+    for (i = 0; i < len-6; i++)
     {
         if (buf[i] == 0x00 || buf[i] == 0xff || buf[i] == '\0')
         {
-            memset(&buf[i], 0x00, len - i);
+            buf[i] = '/';
+            buf[i+1] = pic_num + '0';
+            memcpy(&buf[i+2], ".jpg", 5);
+            memset(&buf[i+5], 0x00, len - i-6);
             break;
         }
     }
@@ -316,6 +319,12 @@ void R11DebugValueHandle(uint16_t dgus_value)
             data_write_f = 0;
             EX1_Start();
         }
+    }else if(dgus_value == 0x11e)
+    {
+        R11CameraSendT5lCtrl(cameraMAGNIFIER_MODE,cameraCLOSE_STATUS);
+    }else if(dgus_value == 0x11f)
+    {
+        R11CameraSendT5lCtrl(cameraMAGNIFIER_MODE,cameraOPEN_STATUS);
     }
 }
 
@@ -1289,6 +1298,18 @@ void inter_extern1_1_fun_C ( void ) interrupt 2
 												RAMMODE = 0x00;
 
 
+                                                while (DATA1 == 0x00 && DATA0 == 0x01)
+                                                {
+                                                    delay_ms(1);
+                                                    RAMMODE = 0xAF;
+                                                    while (!APP_ACK)
+                                                        ;
+                                                    APP_EN = 1;
+                                                    while (APP_EN)
+                                                        ;
+                                                    RAMMODE = 0x00;
+                                                }
+                                                
                                                 ADR_H = Icon_Overlay_SP[Index] >> 17;
                                                 ADR_M = Icon_Overlay_SP[Index] >> 9;
                                                 ADR_L = Icon_Overlay_SP[Index] >> 1;
@@ -1389,8 +1410,18 @@ void inter_extern1_1_fun_C ( void ) interrupt 2
 												while ( APP_EN );
 												RAMMODE = 0x00;
 
-
-											
+                                                
+                                                while (DATA1 == 0x00 && DATA0 == 0x01)
+                                                {
+                                                    delay_ms(1);
+                                                    RAMMODE = 0xAF;
+                                                    while (!APP_ACK)
+                                                        ;
+                                                    APP_EN = 1;
+                                                    while (APP_EN)
+                                                        ;
+                                                    RAMMODE = 0x00;
+                                                }
 
                                                 ADR_H = Icon_Overlay_SP[Index] >> 17;
                                                 ADR_M = Icon_Overlay_SP[Index] >> 9;

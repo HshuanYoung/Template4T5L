@@ -204,6 +204,8 @@ void R11ConfigInitFormLib(void)
 	page_st.folder_flag = read_param[0] >> 8;
 	page_st.folder_page = read_param[0] & 0xff;
 	read_dgus_vp(FOLDER_PATH_ADDR,(uint8_t*)&addr_st.folder_addr,1);
+	read_dgus_vp(CAMERA_SAVE_HIGH_ADDR,(uint8_t*)&camera_magnifier.camera_save_high,1);
+	read_dgus_vp(CAMERA_SAVE_WIDTH_ADDR,(uint8_t*)&camera_magnifier.camera_save_width,1);
 }
 
 
@@ -261,7 +263,7 @@ static void R11CameraOpenThreadCtrl(uint8_t camera_mode,uint8_t camera_status,ui
 /*
  * @brief 摄像头发送T5L控制指令。
  */
-static void R11CameraSendT5lCtrl(uint8_t camera_mode,uint8_t send_flag)
+void R11CameraSendT5lCtrl(uint8_t camera_mode,uint8_t send_flag)
 {
     uint8_t r11_send_buf[25];
 	r11_send_buf[0] = 0xaa;
@@ -498,6 +500,11 @@ static void MagnifierKeyHandle(uint16_t dgus_value)
 		{
 			camera_is_open = 1;
 			write_dgus_vp(analyzeCAMERA_IS_OPEN_ADDR, (uint8_t *)&camera_is_open, 1);
+			#if cameraLIGHT_IO_CONTROL_ENABLED
+			cameraLIGHT_IO_CONTROL_NUM = 1;
+			cameraLIGHT_IO_CONTROL_NUM2 = 1;
+			#endif
+			delay_ms(10);
 			r11_send_buf[0] = 0xaa;
 			r11_send_buf[1] = 0x55;
 			r11_send_buf[2] = 0x00;
@@ -590,20 +597,24 @@ static void MagnifierKeyHandle(uint16_t dgus_value)
 			r11_send_buf[0] = 0xaa;
 			r11_send_buf[1] = 0x55;
 			r11_send_buf[2] = 0x00;
-			r11_send_buf[3] = (8+32);
+			r11_send_buf[3] = (8+64+4);
 			r11_send_buf[4] = cameraCAP_PICTURE;
 			r11_send_buf[5] = r11_state.now_choose_pic;
 			r11_send_buf[6] = camera_magnifier.camera_cap_high>>8;
 			r11_send_buf[7] = (uint8_t)camera_magnifier.camera_cap_high;
 			r11_send_buf[8] = camera_magnifier.camera_cap_width >> 8;
 			r11_send_buf[9] = (uint8_t)camera_magnifier.camera_cap_width;
-			r11_send_buf[10] = ABBR_QUALITY;
+			r11_send_buf[10] = camera_magnifier.camera_save_high>>8;
+			r11_send_buf[11] = (uint8_t)camera_magnifier.camera_save_high;
+			r11_send_buf[12] = camera_magnifier.camera_save_width>>8;
+			r11_send_buf[13] = (uint8_t)camera_magnifier.camera_save_width;
+			r11_send_buf[14] = ABBR_QUALITY;
 			/** 2026.03.09:增加图片大小的设置 */
-			r11_send_buf[11] = T5L_MAX_PIC_KB;
+			r11_send_buf[15] = T5L_MAX_PIC_KB;
 			/** 2025.08.26:增加指定路径创建大图 */
-			read_dgus_vp(addr_st.folder_addr,(uint8_t*)&r11_send_buf[12],16);
-			FormatArrayToFullPath(&r11_send_buf[12], 32);
-			UartSendData(&Uart_R11,r11_send_buf,12+32);
+			read_dgus_vp(addr_st.folder_addr,(uint8_t*)&r11_send_buf[16],32);
+			FormatArrayToFullPath(&r11_send_buf[16], 64,r11_send_buf[5]);
+			UartSendData(&Uart_R11,r11_send_buf,16+64);
 			r11_state.delay_count = 0;
 		}else
 		{
@@ -727,6 +738,11 @@ static void MagnifierKeyHandle(uint16_t dgus_value)
 			}else if(camera_process_state == CAMERA_INSERT_CHECK)
 			{
 				R11ClearPicture(0);
+				#if cameraLIGHT_IO_CONTROL_ENABLED
+				cameraLIGHT_IO_CONTROL_NUM = 0;
+				cameraLIGHT_IO_CONTROL_NUM2 = 0;
+				#endif
+				delay_ms(10);
 				if(page_st.menu_flag == 0x5a)
 				{
 					SwitchPageById((uint16_t)page_st.menu_page); 
@@ -1173,6 +1189,12 @@ static void R11ClearHairAnalyzeResult(void)
 	write_dgus_vp(analyzeHAIR_DENSE_LEVEL_ADDR,(uint8_t*)&zero_value,1);
 	write_dgus_vp(analyzeHAIR_LEVEL_ADDR,(uint8_t*)&zero_value,1);
 	write_dgus_vp(analyzeSKIN_LEVEL_ADDR,(uint8_t*)&zero_value,1);
+	write_dgus_vp(analyzeHAIR_THICKNESS_ADDR,(uint8_t*)&zero_value,1);
+	write_dgus_vp(analyzeENERGY_K_TOTAL_ADDR,(uint8_t*)&zero_value,1);
+	write_dgus_vp(analyzeENERGY_E_FINAL_ADDR,(uint8_t*)&zero_value,1);
+	write_dgus_vp(analyzeENERGY_F_FINAL_ADDR,(uint8_t*)&zero_value,1);
+	memset(&analyze.skin_analyze,0,sizeof(analyze.skin_analyze));
+
 }
 
 
@@ -1201,12 +1223,31 @@ static void T5lUartSendAnalyzeResult(uint16_t addr,uint8_t len)
 	UartSendData(&Uart2, auto_load_ret_arr, auto_load_len + 7);
 }
 
+
+static void R11EnergyAnalyzeCalcResult(uint16_t dense_level,uint16_t thick_level)
+{
+	float energy_k_total,energy_e_final,energy_f_final;
+	float ks_arr[6] = {1.00,0.95,0.85,0.70,0.55,0.40};
+	float kc_arr[6] = {1.00,0.80,0.80,0.60,0.40,0.40};
+	float kd_arr[3] = {0.65,0.80,1.00};
+	float km_arr[3] = {0.55,0.75,0.95};
+	energy_k_total = 0.4 * ks_arr[analyze.hair_analyze.skin_level+1] + 0.25 * kc_arr[analyze.hair_analyze.hair_level+1] + 0.2 * kd_arr[dense_level] + 0.15 * km_arr[thick_level];
+	energy_e_final = 8.0 * energy_k_total;
+	energy_f_final = 5.0 * thick_level * 0.85 + 1 * 0.15;
+	write_dgus_vp(analyzeENERGY_K_TOTAL_ADDR,(uint8_t*)&energy_k_total,2);
+	write_dgus_vp(analyzeENERGY_E_FINAL_ADDR,(uint8_t*)&energy_e_final,2);
+	write_dgus_vp(analyzeENERGY_F_FINAL_ADDR,(uint8_t*)&energy_f_final,2);
+	T5lUartSendAnalyzeResult(analyzeENERGY_K_TOTAL_ADDR,6);
+}
+
 static void R11HairAnalyzeCalcResult(void)
 {
+	uint16_t dense_level, thick_level;
+	uint16_t hair_area; //1cm2面积毛发数量
 	#define HAIR_ANALYZE_LEVEL_ENABLED 1          /* 是否采用皮肤颜色分级模式 0采用rgb24转16的原始颜色，1采用皮肤和头发分级模式*/
 	/* RGB24转RGB16宏定义 565*/
 	#define RGB24_2_RGB16(r,g,b)  ( (((uint16_t)r>>3)<<11) | ((g>>2)<<5) | (b>>3) )
-	uint16_t hair_level_sum,skin_level_sum,i,percent_temp;
+	uint16_t i;
 	#if (HAIR_ANALYZE_LEVEL_ENABLED == 0)
 	uint8_t color_rect_arr[26];
 	#define COLOR_RECT_ADDR   0x3510
@@ -1215,44 +1256,7 @@ static void R11HairAnalyzeCalcResult(void)
 	analyze.hair_analyze.rgb16[1] = RGB24_2_RGB16(analyze.hair_analyze.red[1],analyze.hair_analyze.green[1],analyze.hair_analyze.blue[1]);
 	write_dgus_vp(analyzeHAIR_RGB_ADDR,(uint8_t*)analyze.hair_analyze.rgb16,2);
 	#if HAIR_ANALYZE_LEVEL_ENABLED
-	hair_level_sum = (analyze.hair_analyze.red[0] + analyze.hair_analyze.green[0] + analyze.hair_analyze.blue[0]) / 3;
-	if(hair_level_sum > 230)
-	{
-		analyze.hair_analyze.hair_level = 1;
-	}else if(hair_level_sum > 200 && hair_level_sum <= 230)
-	{
-		analyze.hair_analyze.hair_level = 2;
-	}else if(hair_level_sum > 80 && hair_level_sum <= 200)
-	{
-		analyze.hair_analyze.hair_level = 3;
-	}else if(hair_level_sum > 50 && hair_level_sum <= 80)
-	{
-		analyze.hair_analyze.hair_level = 4;
-	}else if(hair_level_sum > 20 && hair_level_sum <= 50)
-	{
-		analyze.hair_analyze.hair_level = 5;
-	}else if(hair_level_sum <= 20)
-	{
-		analyze.hair_analyze.hair_level = 6;
-	}
 	write_dgus_vp(analyzeHAIR_LEVEL_ADDR,(uint8_t*)&analyze.hair_analyze.hair_level,1);
-	skin_level_sum = (analyze.hair_analyze.red[1] + analyze.hair_analyze.green[1] + analyze.hair_analyze.blue[1]) / 3;
-	if(skin_level_sum > 245)
-	{
-		analyze.hair_analyze.skin_level = 1;
-	}else if(skin_level_sum > 180 && skin_level_sum <= 245)
-	{
-		analyze.hair_analyze.skin_level = 2;
-	}else if(skin_level_sum > 120 && skin_level_sum <= 180)
-	{
-		analyze.hair_analyze.skin_level = 3;
-	}else if(skin_level_sum > 80 && skin_level_sum <= 120)
-	{
-		analyze.hair_analyze.skin_level = 4;
-	}else if(skin_level_sum <= 80)
-	{
-		analyze.hair_analyze.skin_level = 5;
-	}
 	write_dgus_vp(analyzeSKIN_LEVEL_ADDR,(uint8_t*)&analyze.hair_analyze.skin_level,1);
 	#else   /*HAIR_ANALYZE_LEVEL_ENABLED 启用皮肤和头发颜色分级模式 */
 	if(screen_opt.screen_ratio == 0)
@@ -1319,25 +1323,41 @@ static void R11HairAnalyzeCalcResult(void)
 		write_dgus_vp(COLOR_RECT_ADDR,color_rect_arr,13);
 	}
 	#endif /*HAIR_ANALYZE_LEVEL_ENABLED */
-	percent_temp = analyze.percent / 10;
-	if(percent_temp > 30)
+	//稀疏（＜15根/cm²）、中等（15~35根/cm²）、浓密（＞35根/cm²）
+	hair_area = analyze.hair_analyze.hair_num * 8;  
+	if(hair_area > 35)
 	{
-		analyze.hair_analyze.hair_dense = 3;
-	}else if(percent_temp > 10 && percent_temp <= 30)
+		dense_level = 3;
+	}else if(hair_area >= 15)
 	{
-		analyze.hair_analyze.hair_dense = 2;
+		dense_level = 2;
 	}else
 	{
-		analyze.hair_analyze.hair_dense = 1;
+		dense_level = 1;
 	}
-	write_dgus_vp(analyzeHAIR_DENSE_LEVEL_ADDR,(uint8_t*)&analyze.hair_analyze.hair_dense,1);
-	write_dgus_vp(analyzeHAIR_DENSE_PERCENT_ADDR,(uint8_t*)&percent_temp,1);
+	//粗硬（＞100um）、中等（60~100um）、细软（＜60um）
+	if(analyze.hair_analyze.hair_thickness > 100)
+	{
+		thick_level = 3;
+	}
+	else if(analyze.hair_analyze.hair_thickness >= 60)
+	{
+		thick_level = 2;
+	}
+	else
+	{
+		thick_level = 1;
+	}
+	write_dgus_vp(analyzeHAIR_DENSE_ADDR,(uint8_t*)&dense_level,1);
+	write_dgus_vp( analyzeHAIR_THICKNESS_ADDR,(uint8_t*)&thick_level,1);
 	for(i=0;i<3;i++)
 	{
 		/* 自动上传时*/
 		delay_ms(1);
 		T5lUartSendAnalyzeResult(analyzeRESULT_ADDR + i,1);
 	}
+
+	R11EnergyAnalyzeCalcResult(dense_level,thick_level);
 }
 
 
@@ -1816,6 +1836,46 @@ static void R11AnalyzeTask(void)
 }
 
 
+
+static void R11AutoCapPictureAndAnalyze(void)
+{
+	static uint16_t auto_cap_process = 0;
+	static uint16_t count = 0;
+	uint16_t write_param[10];
+	if(camera_magnifier.camera_open_flag == 0)
+	{
+		return;
+	}
+	count++;
+	if(auto_cap_process == 0)
+	{
+		if(count == 20)
+		{
+			/* 自动拍照 */
+			write_param[0] = 0x0003;
+			write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&write_param[0],1);
+			auto_cap_process = 1;
+		}
+	}else if(auto_cap_process == 1)
+	{
+		if(count >= 30)
+		{
+			/* 自动分析 */
+			write_param[0] = 0x0004;
+			write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&write_param[0],1);
+			auto_cap_process = 2;
+		}
+	}else if(auto_cap_process == 2)
+	{
+		if(count >= 1300)
+		{
+			count = 0;
+			auto_cap_process = 0;
+		}
+	}
+}
+
+
 static void R11FaceTypeChooseTask(void)
 {
 	const uint16_t uint16_port_zero = 0;
@@ -1866,6 +1926,39 @@ static void R11FaceTypeChooseTask(void)
 
 #endif /* R11_HAIR_ANALYZE_ENABLED */
 
+/*
+ * @brief 解析携带分级结果的毛发分析返回帧。
+ * @param frame  接收数据帧
+ * @param len		 数据帧长度
+ */
+static void AnalyzeDecode(const uint8_t *frame,uint16_t len)
+{
+	if(frame == NULL || len < 14)
+	{
+		return;
+	}
+	//percent + skinRGB + hairRGB兼容旧协议
+	analyze.percent = (frame[6] << 8) | frame[7];
+	//skinRGB
+	analyze.hair_analyze.red[0] = frame[8];
+	analyze.hair_analyze.green[0] = frame[9];
+	analyze.hair_analyze.blue[0] = frame[10];
+	//hairRGB
+	analyze.hair_analyze.red[1] = frame[11];
+	analyze.hair_analyze.green[1] = frame[12];
+	analyze.hair_analyze.blue[1] = frame[13];
+
+	analyze.hair_analyze.hair_level = 0;
+	analyze.hair_analyze.skin_level = 0;
+	if(len >= 17)
+	{
+		analyze.hair_analyze.hair_level = frame[14];  //毛发颜色分级结果
+		analyze.hair_analyze.skin_level = frame[15];	//皮肤 Fitzpatrick 6 级分型结果
+		analyze.hair_analyze.hair_thickness = frame[16]; //毛发平均直径，单位um
+		analyze.hair_analyze.hair_num = frame[17];
+	}
+	analyze.res_done_flag = 1;
+}
 
 /*
  * @brief 处理美容协议帧。
@@ -2067,14 +2160,7 @@ void UartR11UserBeautyProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
 			case analyzeHAIR_RESULT:
 				if(frame[6] != 0 || frame[7] != 0)
 				{
-					analyze.percent = (frame[6]<<8)|frame[7];
-					analyze.hair_analyze.red[0] = frame[8];
-					analyze.hair_analyze.green[0] = frame[9];
-					analyze.hair_analyze.blue[0] = frame[10];
-					analyze.hair_analyze.red[1] = frame[11];
-					analyze.hair_analyze.green[1] = frame[12];
-					analyze.hair_analyze.blue[1] = frame[13];
-					analyze.res_done_flag = 1;
+					AnalyzeDecode(frame,len);
 				}else
 				{
 					
@@ -2148,6 +2234,11 @@ void R11NetskinAnalyzeTask(void)
     if(r11_state.restart_flag == 1)
     {
         R11RestartInit();
+		#if cameraLIGHT_IO_CONTROL_ENABLED
+		P0MDOUT |= 0xc0;
+		cameraLIGHT_IO_CONTROL_NUM = 0;
+		cameraLIGHT_IO_CONTROL_NUM2 = 0;
+		#endif
 		video_init_process = VIDEO_PROCESS_UNINIT;
         r11_state.restart_flag = 2;  /* 重置重启标志 */
     }else if(r11_state.restart_flag == 2)
@@ -2160,6 +2251,7 @@ void R11NetskinAnalyzeTask(void)
 		#if R11_HAIR_ANALYZE_ENABLED
 		R11AnalyzeTask();
 		R11FaceTypeChooseTask();
+		R11AutoCapPictureAndAnalyze();
 		#endif /*R11_HAIR_ANALYZE_ENABLED */
 	}
 }
