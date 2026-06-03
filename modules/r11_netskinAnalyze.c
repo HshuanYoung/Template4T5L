@@ -1348,7 +1348,7 @@ static void R11HairAnalyzeCalcResult(void)
 	{
 		thick_level = 1;
 	}
-	write_dgus_vp(analyzeHAIR_DENSE_ADDR,(uint8_t*)&dense_level,1);
+	write_dgus_vp(analyzeHAIR_DENSE_LEVEL_ADDR,(uint8_t*)&dense_level,1);
 	write_dgus_vp( analyzeHAIR_THICKNESS_ADDR,(uint8_t*)&thick_level,1);
 	for(i=0;i<3;i++)
 	{

@@ -8,10 +8,6 @@
 #endif /* uartMODBUS_PROTOCOL_ENABLED */
 
 
-#if _4G_AIR780E_ENABLED
-#include "4G_air780e.h"
-#endif
-
 #include "rtc.h"
 
 #if gpioGPIO_ENABLE
@@ -52,10 +48,6 @@ void main(void)
 	// SysTaskAdd(1, COUNT_TASK_INTERVAL, CountTask);
 
 	SysTaskAdd(2, UART_TASK_INTERVAL, UartProtocalHandleTask);
-
-	#if _4G_AIR780E_ENABLED
-	SysTaskAdd(6, AIR780E_TASK_INTERVAL, Air780E_Task);
-	#endif
 
 	#if sysBEAUTY_MODE_ENABLED
 	SysTaskAdd(3, R11_TASK_INTERVAL, R11NetskinAnalyzeTask);

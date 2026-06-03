@@ -125,8 +125,8 @@
 #define analyzeSKIN_AREA_PERCENT_ADDR 0x3007
 #define analyzeTYPE_TITLE_ADDR  0x3009
 #define analyzeFAIL_ADDR        0x300a
-#define analyzeSKIN_LEVEL_ADDR  0x300b
-#define analyzeHAIR_LEVEL_ADDR  0x300c
+// #define analyzeSKIN_LEVEL_ADDR  0x300b
+// #define analyzeHAIR_LEVEL_ADDR  0x300c
 #define analyzeHAIR_THICKNESS_ADDR  0x300d
 
 /* 推荐能量密度从0x35a0开始*/
