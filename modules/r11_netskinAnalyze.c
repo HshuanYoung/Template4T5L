@@ -71,8 +71,8 @@ void R11ConfigInitFormLib(void)
 		Icon_Overlay_SP_VP[1] = Icon_Overlay_SP_VP[3] = 0x1e000;
 		Icon_Overlay_SP_VP[4] = 0x37000;
 		Icon_Overlay_SP_VP[5] = 0x39000;
-		Icon_Overlay_SP_VP[6] = 0x3b000;
-		Icon_Overlay_SP_VP[7] = 0x3d000;
+		Icon_Overlay_SP_VP[6] = 0x3f000;
+		Icon_Overlay_SP_VP[7] = 0x3f000;
 		Icon_Overlay_SP_VP[8] = Icon_Overlay_SP_VP[9] = Icon_Overlay_SP_VP[10] = 0x3f000;
 	}else if(screen_opt.thumbnail_num == 5)
 	{
@@ -91,10 +91,10 @@ void R11ConfigInitFormLib(void)
 		Icon_Overlay_SP_VP[1] = Icon_Overlay_SP_VP[3] = 0x1d000;
 		Icon_Overlay_SP_VP[4] = 0x33000;
 		Icon_Overlay_SP_VP[5] = 0x35000;
-		Icon_Overlay_SP_VP[6] = 0x37000;
-		Icon_Overlay_SP_VP[7] = 0x39000;
-		Icon_Overlay_SP_VP[8] = 0x3b000;
-		Icon_Overlay_SP_VP[9] = 0x3d000;
+		Icon_Overlay_SP_VP[6] = 0x3f000;
+		Icon_Overlay_SP_VP[7] = 0x3f000;
+		Icon_Overlay_SP_VP[8] = 0x3f000;
+		Icon_Overlay_SP_VP[9] = 0x3f000;
 		Icon_Overlay_SP_VP[10] = 0x3f000;
 	}
 
@@ -167,15 +167,17 @@ void R11ConfigInitFormLib(void)
 	memcpy(&thumbnail, &read_param[0], 28);
 	camera_magnifier.camera_cap_high = thumbnail.high;
 	camera_magnifier.camera_cap_width = thumbnail.weight;
-	Icon_Overlay_SP_L[4] = Icon_Overlay_SP_L[5] = Icon_Overlay_SP_L[6] = Icon_Overlay_SP_L[7] = Icon_Overlay_SP_L[8] = Icon_Overlay_SP_L[9] = thumbnail.high;
-	Icon_Overlay_SP_H[4] = Icon_Overlay_SP_H[5] = Icon_Overlay_SP_H[6] = Icon_Overlay_SP_H[7] = Icon_Overlay_SP_H[8] = Icon_Overlay_SP_H[9] = thumbnail.weight;
+	Icon_Overlay_SP_L[4] = Icon_Overlay_SP_L[6] = Icon_Overlay_SP_L[7] = Icon_Overlay_SP_L[8] = Icon_Overlay_SP_L[9] = thumbnail.high;
+	Icon_Overlay_SP_H[4] = Icon_Overlay_SP_H[6] = Icon_Overlay_SP_H[7] = Icon_Overlay_SP_H[8] = Icon_Overlay_SP_H[9] = thumbnail.weight;
 	Icon_Overlay_SP_X[4] = thumbnail.pic1_x_point;
 	Icon_Overlay_SP_X[5] = thumbnail.pic2_x_point;
 	Icon_Overlay_SP_X[6] = thumbnail.pic3_x_point;
 	Icon_Overlay_SP_X[7] = thumbnail.pic4_x_point;
 	Icon_Overlay_SP_X[8] = thumbnail.pic5_x_point;
 	Icon_Overlay_SP_X[9] = thumbnail.pic6_x_point;
-	
+	/* 这里语义为分析图的大小*/
+	Icon_Overlay_SP_L[5] = thumbnail.pic6_x_point;
+	Icon_Overlay_SP_H[5] = thumbnail.pic6_y_point;
 	Icon_Overlay_SP_Y[4] = thumbnail.pic1_y_point;
 	Icon_Overlay_SP_Y[5] = thumbnail.pic2_y_point;
 	Icon_Overlay_SP_Y[6] = thumbnail.pic3_y_point;
@@ -1356,8 +1358,8 @@ static void R11HairAnalyzeCalcResult(void)
 		delay_ms(1);
 		T5lUartSendAnalyzeResult(analyzeRESULT_ADDR + i,1);
 	}
-
-	R11EnergyAnalyzeCalcResult(dense_level,thick_level);
+	T5lUartSendAnalyzeResult(analyzeHAIR_THICKNESS_ADDR,1);
+	// R11EnergyAnalyzeCalcResult(dense_level,thick_level);
 }
 
 
@@ -1460,10 +1462,14 @@ static void R11AnalyzeTask(void)
 				r11_send_buf[2] = 0x00;
 				r11_send_buf[3] = 0x07;
 				r11_send_buf[4] = analyzeHAIR_RESULT;
-				r11_send_buf[5] = camera_magnifier.camera_cap_high>>8;
-				r11_send_buf[6] = (uint8_t)camera_magnifier.camera_cap_high;
-				r11_send_buf[7] = camera_magnifier.camera_cap_width>>8;
-				r11_send_buf[8] = (uint8_t)camera_magnifier.camera_cap_width;
+				// r11_send_buf[5] = camera_magnifier.camera_cap_high>>8;
+				// r11_send_buf[6] = (uint8_t)camera_magnifier.camera_cap_high;
+				// r11_send_buf[7] = camera_magnifier.camera_cap_width>>8;
+				// r11_send_buf[8] = (uint8_t)camera_magnifier.camera_cap_width;
+				r11_send_buf[5] = Icon_Overlay_SP_L[5]>>8;
+				r11_send_buf[6] = (uint8_t)Icon_Overlay_SP_L[5];
+				r11_send_buf[7] = Icon_Overlay_SP_H[5]>>8;
+				r11_send_buf[8] = (uint8_t)Icon_Overlay_SP_H[5];
 				r11_send_buf[9] = THRESH_NUM;
 				r11_send_buf[10] = 0x01;
 				UartSendData(&Uart_R11,r11_send_buf,11);
@@ -2251,7 +2257,7 @@ void R11NetskinAnalyzeTask(void)
 		#if R11_HAIR_ANALYZE_ENABLED
 		R11AnalyzeTask();
 		R11FaceTypeChooseTask();
-		R11AutoCapPictureAndAnalyze();
+		// R11AutoCapPictureAndAnalyze();
 		#endif /*R11_HAIR_ANALYZE_ENABLED */
 	}
 }
