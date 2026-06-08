@@ -127,6 +127,34 @@ void delay_ms(uint16_t ms)
 }
 
 
+/**
+ * @brief 看门狗喂狗函数
+ * @details 根据WDT_RES_TIME标志位状态，执行喂狗操作以
+ */
+void SysT5lCheckGuiStatus(void)
+{
+    #define WDT_RES_TIME 
+	static uint8_t cnt = 0;
+    uint16_t sta;
+    switch (cnt)
+    {
+    case 0:
+        write_dgus_vp(0x88,"\x5a\x00",1);
+        cnt++;	
+        break;
+    case 1:
+        read_dgus_vp(0x88,(uint8_t *)&sta,1);
+        if(sta==0x0000){
+            sysWDT_RESET;
+            cnt = 0;
+        }
+        break;
+    default:
+        break;
+    }		
+}
+
+
 uint16_t crc_16 (uint8_t *pBuf, uint16_t buf_len )
 {
     uint8_t i;

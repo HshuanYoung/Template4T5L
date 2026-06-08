@@ -61,6 +61,7 @@ void main(void)
 	SysTaskAdd(3, R11_TASK_INTERVAL, R11AdvertiseTask);
 	#endif /* sysADVERTISE_MODE_ENABLED */
 
+  SysTaskAdd(10, GUI_CHECK_INTERVAL, SysT5lCheckGuiStatus);
 	while(1)
 	{
 	/** 这个任务需要在主循环中运行，用来进行数据出错后的处理 */
