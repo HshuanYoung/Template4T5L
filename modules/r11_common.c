@@ -77,6 +77,9 @@ PLAYER_T r11_player;
 VIDEO_INIT_PROCESS video_init_process = VIDEO_PROCESS_UNINIT;
 uint8_t wifi_now_offset = 0;
 
+
+uint16_t handshake_status = 0;  /* 握手状态，0代表未收到回复，1代表已经收到回复*/
+
 /** @note 适用于全屏播放的分辨率参数，由于最高只能显示1280*720，所以在1920*1080的分辨率上面进行特殊处理 */
 // uint16_t pixels_arr_h[5]={1280,1024,800,800,1024};
 // uint16_t pixels_arr_l[5]={720,600,600,480,768};
@@ -348,6 +351,29 @@ void R11ClearPicture(uint8_t clear_type)
     }
     #endif /* sysBEAUTY_MODE_ENABLED */
 }
+
+
+
+void R11HandShakeConnect(void)
+{
+    static uint8_t handshake_count = 0;
+    uint8_t r11_send_buf[6];
+
+    handshake_count++;
+    if(handshake_count > (5000/R11_TASK_INTERVAL) && handshake_status == 0)
+    {
+        handshake_count = 0;
+        r11_send_buf[0] = 0xaa;
+        r11_send_buf[1] = 55;
+        r11_send_buf[2] = 0x00;
+        r11_send_buf[3] = 0x02;
+        r11_send_buf[4] = cmdR11_HAND_SHAKE;
+        r11_send_buf[5] = 0xff;
+        T5lSendUartDataToR11(cmdR11_HAND_SHAKE, &r11_send_buf[0]);
+    }
+}
+
+
 
 
 void R11VideoPlayerProcess(void)
@@ -1220,14 +1246,18 @@ void inter_extern1_1_fun_C ( void ) interrupt 2
         case 0xC0:
         {
             EX0 = 0;
-            if ( data_write_f == 0x01 )
+            // if ( data_write_f == 0x01 )
+            if(1)
             {
-                if ( 1 | ( Packet_Count < 1 ) )
+                // if ( 1 | ( Packet_Count < 1 ) )
+                if(1)
                 {
                     Temp = ( state & 0xC0 ) | ( Packet_TotalCount + 1 );
-                    if ( Temp == state )
+                    // if ( Temp == state )
+                    if(1)
                     {
-                        if ( Packet_TotalCount <  Max_16KB_Count )
+                        // if ( Packet_TotalCount <  Max_16KB_Count )
+                        if(1)
                         {
                             if ( 1 || END_CRC == 0 )
                             {
@@ -1236,12 +1266,14 @@ void inter_extern1_1_fun_C ( void ) interrupt 2
                                 if ( Packet_TotalCount & 0x01 )
                                 {
 
-                                    if ( buf_tail == 0xC000 )
+                                    // if ( buf_tail == 0xC000 )
+                                    if(1)
                                     {
                                         data_write_f = 2;
                                         {
                                             Judge_Packet_Count();
-                                            if ( END_CRC != 0 )
+                                            // if ( END_CRC != 0 )
+                                            if(0)
                                             {
                                                 CRC_ERR_Count++;
                                                 data_write_f = 8;
@@ -1348,12 +1380,14 @@ void inter_extern1_1_fun_C ( void ) interrupt 2
                                 }
                                 else
                                 {
-                                    if ( buf_tail == 0x8000 )
+                                    // if ( buf_tail == 0x8000 )
+                                    if(1)
                                     {
                                         data_write_f = 2;
                                         {
                                             Judge_Packet_Count();
-                                            if ( END_CRC != 0 )
+                                            // if ( END_CRC != 0 )
+                                            if(0)
                                             {
                                                 CRC_ERR_Count++;
                                                 data_write_f = 8;

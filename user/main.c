@@ -46,7 +46,7 @@ void main(void)
   SysTaskAdd(0, RTC_INTERVAL, RtcTask);
 
   // SysTaskAdd(1, COUNT_TASK_INTERVAL, CountTask);
-
+  sysWDT_ON;
   SysTaskAdd(2, UART_TASK_INTERVAL, UartProtocalHandleTask);
 
 
@@ -62,8 +62,9 @@ void main(void)
   SysTaskAdd(3, R11_TASK_INTERVAL, R11AdvertiseTask);
   #endif /* sysADVERTISE_MODE_ENABLED */
 
-  while(1)
-  {
+  SysTaskAdd(10, GUI_CHECK_INTERVAL, SysT5lCheckGuiStatus);
+	while(1)
+	{
 	/** 这个任务需要在主循环中运行，用来进行数据出错后的处理 */
 	#if sysBEAUTY_MODE_ENABLED || sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED
 	if(data_write_f > 2)

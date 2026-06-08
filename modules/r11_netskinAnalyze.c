@@ -2166,6 +2166,11 @@ void UartR11UserBeautyProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
 				analyze.res_done_flag = 1;
 				break;
 			#endif /* R11_HAIR_ANALYZE_ENABLED */
+			case cmdR11_HAND_SHAKE:
+				if(frame[5] == 0x01)
+				{
+					handshake_status = 1;
+				}
 			default:
 				break;
 		}
@@ -2204,7 +2209,12 @@ void UartR11UserBeautyProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
 void R11NetskinAnalyzeTask(void)
 {
     /** 在重启之后，R11RestartInit只运行一次，R11VideoPlayerProcess会一直运行直到完成 */
-    if(r11_state.restart_flag == 1)
+    if(r11_state.restart_flag == 0)
+	{
+		/*20260609更新，增加握手的协议，每隔5s发送一次*/
+		R11HandShakeConnect();
+	}
+	else if(r11_state.restart_flag == 1)
     {
         R11RestartInit();
 		#if cameraLIGHT_IO_CONTROL_ENABLED

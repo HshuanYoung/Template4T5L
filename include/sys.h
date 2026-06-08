@@ -157,6 +157,13 @@ void SysTaskRemove(uint8_t taskID);
  */
 void SysTaskRun(void);
 
+
+/**
+ * @brief 检查GUI状态
+ * @details 定期检查当前GUI状态并执行相应的处理逻辑
+ */
+#define GUI_CHECK_INTERVAL 100
+void SysT5lCheckGuiStatus(void);
 /**
  * @brief 微秒级延时函数
  * @details 提供精确的微秒级别延时功能

@@ -53,6 +53,10 @@ extern uint16_t Locate_arr[10];
 extern volatile uint8_t data data_write_f;
 extern volatile uint8_t data Bit8_16_Flag;
 
+
+/** 握手状态全局变量 */
+extern uint16_t handshake_status;  /**< 握手状态，0代表未收到回复，1代表已经收到回复*/
+
 /**
  * @enum VIDEO_INIT_PROCESS
  * @brief 视频初始化流程枚举类型。
@@ -122,6 +126,8 @@ extern VIDEO_INIT_PROCESS video_init_process;
 #define cmdWIFI_CONNECT             0xc1
 #define cmdSET_TERNARY_CODE         0xf0
 #define cmdSET_WEBSOCKET            0xf1
+#define cmdR11_HAND_SHAKE           0xff
+
 
 /** 视频播放按键定义区域 */
 #define keyMP4_PAUSE				0x0004
@@ -269,6 +275,10 @@ void R11DebugValueHandle(uint16_t dgus_value);
  */
 void T5lSendUartDataToR11(uint8_t cmd, uint8_t *buf);
 
+/**
+ * @brief r11握手连接函数，每隔5秒发送一次握手协议，直到收到回复为止。
+ */
+void R11HandShakeConnect(void);
 
 /**
  * @brief 清除图片显示。
