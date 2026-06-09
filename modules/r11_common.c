@@ -1252,18 +1252,14 @@ void inter_extern1_1_fun_C ( void ) interrupt 2
         case 0xC0:
         {
             EX0 = 0;
-            // if ( data_write_f == 0x01 )
-            if(1)
+            if ( data_write_f == 0x01 )
             {
-                // if ( 1 | ( Packet_Count < 1 ) )
-                if(1)
+                if ( 1 | ( Packet_Count < 1 ) )
                 {
                     Temp = ( state & 0xC0 ) | ( Packet_TotalCount + 1 );
-                    // if ( Temp == state )
-                    if(1)
+                    if ( Temp == state )
                     {
-                        // if ( Packet_TotalCount <  Max_16KB_Count )
-                        if(1)
+                        if ( Packet_TotalCount <  Max_16KB_Count )
                         {
                             if ( 1 || END_CRC == 0 )
                             {
@@ -1272,14 +1268,12 @@ void inter_extern1_1_fun_C ( void ) interrupt 2
                                 if ( Packet_TotalCount & 0x01 )
                                 {
 
-                                    // if ( buf_tail == 0xC000 )
-                                    if(1)
+                                    if ( buf_tail == 0xC000 )
                                     {
                                         data_write_f = 2;
                                         {
                                             Judge_Packet_Count();
-                                            // if ( END_CRC != 0 )
-                                            if(0)
+                                            if ( END_CRC != 0 )
                                             {
                                                 CRC_ERR_Count++;
                                                 data_write_f = 8;
@@ -1386,14 +1380,12 @@ void inter_extern1_1_fun_C ( void ) interrupt 2
                                 }
                                 else
                                 {
-                                    // if ( buf_tail == 0x8000 )
-                                    if(1)
+                                    if ( buf_tail == 0x8000 )
                                     {
                                         data_write_f = 2;
                                         {
                                             Judge_Packet_Count();
-                                            // if ( END_CRC != 0 )
-                                            if(0)
+                                            if ( END_CRC != 0 )
                                             {
                                                 CRC_ERR_Count++;
                                                 data_write_f = 8;
