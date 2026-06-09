@@ -64,6 +64,8 @@ void R11ConfigInitFormLib(void)
 	read_dgus_vp(VIDEO_FULL_ADDR,(uint8_t*)&read_param[0],1);
 	page_st.fullvideo_flag = read_param[0] >> 8;
 	page_st.fullvideo_page = read_param[0] & 0xff;
+	/** 8.restart_flag初始化 */
+	r11_state.restart_flag = 0;
 }
 
 

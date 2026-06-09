@@ -266,6 +266,12 @@ void T5lSendUartDataToR11( uint8_t cmd, uint8_t *buf)
             r11_buf[5] = buf[5];
             break;
         #endif /* sysN5CAMERA_MODE_ENABLED */
+        case cmdR11_HAND_SHAKE:
+            r11_buf[2] = buf[2];
+            r11_buf[3] = buf[3];
+            r11_buf[4] = buf[4];
+            r11_buf[5] = buf[5];
+            break;
         default:
             return;
             break;

@@ -206,6 +206,9 @@ void R11ConfigInitFormLib(void)
 	read_dgus_vp(FOLDER_PATH_ADDR,(uint8_t*)&addr_st.folder_addr,1);
 	read_dgus_vp(CAMERA_SAVE_HIGH_ADDR,(uint8_t*)&camera_magnifier.camera_save_high,1);
 	read_dgus_vp(CAMERA_SAVE_WIDTH_ADDR,(uint8_t*)&camera_magnifier.camera_save_width,1);
+
+	/** 8.restart_flag初始化 */
+	r11_state.restart_flag = 0;
 }
 
 
