@@ -1482,7 +1482,7 @@ static void R11AnalyzeTask(void)
 			}else
 			{
 				/* 重新截一张图*/
-				write_param[0] = 0x0003;
+				write_param[0] = 0x0023;
 				write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&write_param[0],1);
 			}
 		}
@@ -2091,7 +2091,7 @@ void UartR11UserBeautyProtocol(UART_TYPE *uart,uint8_t *frame, uint16_t len)
 				if (camera_process_state == CAMERA_PROCESS_END )
 				{
 					#if R11_HAIR_ANALYZE_ENABLED
-					write_param[0] = 0x0003;
+					write_param[0] = 0x0023;
 					write_dgus_vp(R11_ANALYZE_ADDR,(uint8_t*)&write_param[0],1);
 					/*进行一次按键上传*/
 					write_param[0] = (0x5a<<8)|(R11_ANALYZE_ADDR & 0x0f);
