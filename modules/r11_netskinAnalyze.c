@@ -1853,7 +1853,6 @@ static void R11FaceTypeChooseTask(void)
 	}
 }
 
-#endif /* R11_HAIR_ANALYZE_ENABLED */
 
 /*
  * @brief 解析携带分级结果的毛发分析返回帧。
@@ -1888,6 +1887,9 @@ static void AnalyzeDecode(const uint8_t *frame,uint16_t len)
 	}
 	analyze.res_done_flag = 1;
 }
+
+
+#endif /* R11_HAIR_ANALYZE_ENABLED */
 
 /*
  * @brief 处理美容协议帧。
