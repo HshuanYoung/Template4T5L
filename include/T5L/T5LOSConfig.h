@@ -112,9 +112,9 @@ typedef            long			int32_t;
  * @warning 打开这个宏后需要去startup文件中配置R11模块,禁用时需要关闭配置R11模块以使用外部中断0
  * @warning 广告屏美容屏和模拟摄像头开关互斥，注意只能打开一个
  */
-#define sysADVERTISE_MODE_ENABLED       0
+#define sysADVERTISE_MODE_ENABLED       1
 #define sysN5CAMERA_MODE_ENABLED       0
-#define sysBEAUTY_MODE_ENABLED         1     
+#define sysBEAUTY_MODE_ENABLED         0
 
 #if ((sysN5CAMERA_MODE_ENABLED + sysBEAUTY_MODE_ENABLED + sysADVERTISE_MODE_ENABLED) > 1)
 #error "ONLY CAN CHOOSE ONE:ADVERTISE,N5CAMERA,BEAUTY!"
@@ -181,6 +181,31 @@ extern uint32_t sysFCLK;
 #define sysDGUS_CHART_ENABLED              0        /**< 图表功能使能标志 */
 
 #define flashDUAL_BACKUP_ENABLED            0               /**< 双备份使能标志 */
+
+/**
+ * @brief OTA升级功能配置
+ * @details OTA通过Uart_R11接收AB CD协议帧，将升级文件下载到NAND Flash后触发Boot升级。
+ */
+#define otaOTA_ENABLED                 1              /**< OTA升级功能使能标志 */
+#define otaCRC32_CHECK_ENABLED         1              /**< OTA整文件CRC32校验使能标志 */
+#define otaDEBUG_ENABLED               0              /**< OTA调试输出使能标志，当前默认关闭 */
+#define otaTASK_INTERVAL               2              /**< OTA周期任务执行间隔，单位为系统任务节拍 */
+#define otaDOWNLOAD_MAX                20             /**< 单次OTA最多支持的文件数量 */
+
+#define otaNAND_START_ADDR             0x04000000UL   /**< OTA文件下载到NAND Flash的起始地址 */
+#define otaDATA_START_BLOCK            64             /**< OTA文件数据起始4KB块号，0-63块保留给头文件区域 */
+#define otaCACHE_VP_A                  0x7000         /**< OTA写NAND使用的第一个DGUS 4KB缓存区 */
+#define otaCACHE_VP_B                  0x7800         /**< OTA写NAND使用的第二个DGUS 4KB缓存区 */
+#define otaSPEED_VP_ADDR               0x3FFE         /**< OTA下载进度数值VP地址 */
+#define otaSPEED_SP_ADDR               0x4FE0         /**< OTA下载进度控件SP地址 */
+#define otaTEST_TRIGGER_ADDR           0x40C1         /**< OTA测试触发VP地址，写入0x5AA5后发送F3命令 */
+#define otaUPGRADE_FLAG_ADDR           0x51F0         /**< OTA升级完成标志VP/NOR地址 */
+#define otaUPDATE_INFO_ADDR            0x4100         /**< OTA版本号、时间段等信息起始VP地址 */
+#define otaCHARGE_STATUS_ADDR          0x1000         /**< 参考项目保留的充电状态VP地址 */
+
+#if otaOTA_ENABLED && !(sysBEAUTY_MODE_ENABLED || sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED)
+#error "OTA requires Uart_R11. Enable one R11 mode or disable otaOTA_ENABLED."
+#endif /* otaOTA_ENABLED && !R11 mode */
 
 
 
