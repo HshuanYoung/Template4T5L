@@ -20,6 +20,10 @@
 #include "TA_protocal.h"
 #endif /* uartTA_PROTOCOL_ENABLED */
 
+#if otaOTA_ENABLED
+#include "ota.h"
+#endif /* otaOTA_ENABLED */
+
 #if sysSET_FROM_LIB
 uint16_t sys_2k_ratio;
 uint32_t sysFOSC;
@@ -712,6 +716,24 @@ void UartReadFrame(UART_TYPE *uart)
                 #endif /* sysBEAUTY_MODE_ENABLED */
                 i -= one_frame_len;
             }
+            #if otaOTA_ENABLED && (sysBEAUTY_MODE_ENABLED || sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED)
+            else if(frame[total_frame_len - i] == 0xAB && frame[total_frame_len - i + 1] == 0xCD)
+            {
+                /**
+                 * @note OTA协议帧只允许从Uart_R11进入，避免普通串口误处理AB CD数据。
+                 */
+                one_frame_len = (frame[total_frame_len - i + 2] << 8 | frame[total_frame_len - i + 3]) + 4;
+                if(i < one_frame_len)
+                {
+                    break;
+                }
+                if(uart == &Uart_R11)
+                {
+                    OtaReceive(&frame[total_frame_len - i], one_frame_len);
+                }
+                i -= one_frame_len;
+            }
+            #endif /* otaOTA_ENABLED && R11 mode */
             #if uartMODBUS_PROTOCOL_ENABLED
             else if(frame[total_frame_len - i] == modbusSLAVE_ADDRESS)
             {

@@ -3,6 +3,10 @@
 #include "timer.h"
 #include "core_json.h"
 
+#if otaOTA_ENABLED
+#include "ota.h"
+#endif /* otaOTA_ENABLED */
+
 #if uartMODBUS_PROTOCOL_ENABLED
 #include "modbus.h" 
 #endif /* uartMODBUS_PROTOCOL_ENABLED */
@@ -48,6 +52,15 @@ void main(void)
 
 	RtcInit();
 	SysTaskAdd(0, RTC_INTERVAL, RtcTask);
+
+	#if otaOTA_ENABLED
+	/**
+	 * @note OTA初始化依赖DGUS变量空间和Uart_R11，需在T5LCpuInit之后执行。
+	 */
+	OtaDataInit();
+	OtaInit();
+	SysTaskAdd(4, otaTASK_INTERVAL, OtaTask);
+	#endif /* otaOTA_ENABLED */
 
 	// SysTaskAdd(1, COUNT_TASK_INTERVAL, CountTask);
 
