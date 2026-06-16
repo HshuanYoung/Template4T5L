@@ -337,7 +337,7 @@ typedef struct
 
 #if analyzeCAP_DYNAMIC_SIZE
 #define T5L_MAX_PIC_KB          64 
-#elese
+#else
 #define T5L_MAX_PIC_KB          16
 #endif
 typedef struct
