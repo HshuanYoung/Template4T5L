@@ -345,7 +345,7 @@ extern uint32_t sysFCLK;
         #define uartUART5_TIMEOUTSET     5
     #endif  /* uartUART5_TIMEOUT_ENABLED */ 
     #if sysBEAUTY_MODE_ENABLED || sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED
-    #define uartUART5_BAUDRATE           921600
+    #define uartUART5_BAUDRATE           115200
     #else 
     #define uartUART5_BAUDRATE           921600
     #endif /* sysBEAUTY_MODE_ENABLED || sysN5CAMERA_MODE_ENABLED || sysADVERTISE_MODE_ENABLED */
