@@ -48,14 +48,14 @@
  */
 typedef struct
 {
-    uint8_t head_name[4];          /**< 升级头标识，参考工程逻辑值为0x43335AA5UL */
+    uint8_t head_name[4];          /**< 升级头标识，VP写入值为0x4335、0x5AA5 */
     uint8_t block4k[4];            /**< 保留字段，按参考工程默认清零 */
     uint8_t first128m_crc32[4];    /**< 保留字段，按参考工程默认清零 */
     uint8_t second128m_crc32[4];   /**< 保留字段，按参考工程默认清零 */
     uint8_t file_info[OTA_FILE_INFO_COUNT][OTA_FILE_INFO_SIZE]; /**< 文件索引表 */
     uint8_t reserved[OTA_HEADER_BYTES - OTA_FILE_INFO_OFFSET -
                      (OTA_FILE_INFO_COUNT * OTA_FILE_INFO_SIZE) - 2U]; /**< 保留区 */
-    uint8_t header_crc16[2];       /**< 头文件CRC16，低字节在前 */
+    uint8_t header_crc16[2];       /**< 头文件CRC16，高字节在前 */
 } OtaHeaderBlock;
 
 /**
@@ -138,21 +138,6 @@ static void OtaWriteBe32(uint8_t *buf, uint32_t value)
     buf[1] = (uint8_t)(value >> 16);
     buf[2] = (uint8_t)(value >> 8);
     buf[3] = (uint8_t)value;
-}
-
-/**
- * @brief 写入小端32位整数
- * @param[out] buf 目标数据缓冲区指针
- * @param[in] value 待写入的32位整数
- * @return 无
- * @note 用于OTA头文件本地结构体字段，保持参考工程0x43335AA5UL写法语义
- */
-static void OtaWriteLe32(uint8_t *buf, uint32_t value)
-{
-    buf[0] = (uint8_t)value;
-    buf[1] = (uint8_t)(value >> 8);
-    buf[2] = (uint8_t)(value >> 16);
-    buf[3] = (uint8_t)(value >> 24);
 }
 
 /**
@@ -367,12 +352,12 @@ static void OtaWriteWorkBlockToVp(uint16_t vp_addr)
 
 /**
  * @brief 将OTA数据包复制到4KB工作缓冲
- * @param[in] data OTA数据包数据区指针
+ * @param[in] packet_data OTA数据包数据区指针
  * @param[in] packet_len 数据区长度，单位为字节
  * @return 无
- * @note 每次先清零完整4KB，避免末包残留旧数据
+ * @note 每次先清零完整4KB，数据按VP高字节、低字节顺序直接写入，避免末包残留旧数据
  */
-static void OtaCopyPacketToWorkBlock(uint8_t *data, uint16_t packet_len)
+static void OtaCopyPacketToWorkBlock(uint8_t *packet_data, uint16_t packet_len)
 {
     OtaClearWorkBlock();
     if(packet_len > OTA_PACKET_BYTES)
@@ -381,7 +366,7 @@ static void OtaCopyPacketToWorkBlock(uint8_t *data, uint16_t packet_len)
     }
     if(packet_len != 0U)
     {
-        memcpy(OtaVpBlock.raw, data, packet_len);
+        memcpy(OtaVpBlock.raw, packet_data, packet_len);
     }
 }
 
@@ -654,8 +639,8 @@ static void OtaSetHeaderFileInfo(uint16_t index, OtaFileInfo *file, uint8_t bloc
 
     OtaVpBlock.header.file_info[index][0] = 0x5A;
     OtaVpBlock.header.file_info[index][1] = block_count;
-    OtaVpBlock.header.file_info[index][2] = (uint8_t)file->flash_start;
-    OtaVpBlock.header.file_info[index][3] = (uint8_t)(file->flash_start >> 8);
+    OtaVpBlock.header.file_info[index][2] = (uint8_t)(file->flash_start >> 8);
+    OtaVpBlock.header.file_info[index][3] = (uint8_t)file->flash_start;
 }
 
 /**
@@ -673,7 +658,7 @@ static void OtaBuildHeader(void)
     OtaFileInfo *file;
 
     OtaClearWorkBlock();
-    OtaWriteLe32(OtaVpBlock.header.head_name, 0x43335AA5UL);
+    OtaWriteBe32(OtaVpBlock.header.head_name, 0x43355AA5UL);
 
     for(i = 0U; i < OtaStatus.total_num; i++)
     {
@@ -714,8 +699,8 @@ static void OtaBuildHeader(void)
     }
 
     crc16 = crc_16(OtaVpBlock.raw, OTA_HEADER_BYTES - 2U);
-    OtaVpBlock.header.header_crc16[0] = (uint8_t)crc16;
-    OtaVpBlock.header.header_crc16[1] = (uint8_t)(crc16 >> 8);
+    OtaVpBlock.header.header_crc16[0] = (uint8_t)(crc16 >> 8);
+    OtaVpBlock.header.header_crc16[1] = (uint8_t)crc16;
 }
 
 /**
