@@ -62,19 +62,23 @@ static uint16_t OtaReadBe16(uint8_t *buf)
 }
 
 /**
- * @brief 读取小端16位整数
+ * @brief 读取大端32位整数
  * @param[in] buf 数据缓冲区指针
- * @return 小端解析后的16位整数
+ * @return 大端解析后的32位整数
  */
-static uint16_t OtaReadLe16(uint8_t *buf)
+static uint32_t OtaReadBe32(uint8_t *buf)
 {
-    return ((uint16_t)buf[1] << 8) | (uint16_t)buf[0];
+    return ((uint32_t)buf[0] << 24) |
+           ((uint32_t)buf[1] << 16) |
+           ((uint32_t)buf[2] << 8) |
+           (uint32_t)buf[3];
 }
 
 /**
  * @brief 读取小端32位整数
  * @param[in] buf 数据缓冲区指针
  * @return 小端解析后的32位整数
+ * @note DGUS NAND CRC结果按小端读取，不参与AB CD协议字节序调整
  */
 static uint32_t OtaReadLe32(uint8_t *buf)
 {
@@ -97,18 +101,6 @@ static void OtaWriteBe16(uint8_t *buf, uint16_t value)
 }
 
 /**
- * @brief 写入小端16位整数
- * @param[out] buf 目标数据缓冲区指针
- * @param[in] value 待写入的16位整数
- * @return 无
- */
-static void OtaWriteLe16(uint8_t *buf, uint16_t value)
-{
-    buf[0] = (uint8_t)value;
-    buf[1] = (uint8_t)(value >> 8);
-}
-
-/**
  * @brief 写入大端32位整数
  * @param[out] buf 目标数据缓冲区指针
  * @param[in] value 待写入的32位整数
@@ -120,20 +112,6 @@ static void OtaWriteBe32(uint8_t *buf, uint32_t value)
     buf[1] = (uint8_t)(value >> 16);
     buf[2] = (uint8_t)(value >> 8);
     buf[3] = (uint8_t)value;
-}
-
-/**
- * @brief 写入小端32位整数
- * @param[out] buf 目标数据缓冲区指针
- * @param[in] value 待写入的32位整数
- * @return 无
- */
-static void OtaWriteLe32(uint8_t *buf, uint32_t value)
-{
-    buf[0] = (uint8_t)value;
-    buf[1] = (uint8_t)(value >> 8);
-    buf[2] = (uint8_t)(value >> 16);
-    buf[3] = (uint8_t)(value >> 24);
 }
 
 /**
@@ -212,11 +190,11 @@ static void OtaSendData05(void)
     send_buf[send_len++] = OTA_CMD_READ_DATA;
     send_buf[send_len++] = file->itype;
     send_buf[send_len++] = file->apply;
-    OtaWriteLe16(&send_buf[send_len], file->unid);
+    OtaWriteBe16(&send_buf[send_len], file->unid);
     send_len += 2U;
-    OtaWriteLe32(&send_buf[send_len], OtaStatus.off_position);
+    OtaWriteBe32(&send_buf[send_len], OtaStatus.off_position);
     send_len += 4U;
-    OtaWriteLe32(&send_buf[send_len], OtaStatus.off_len);
+    OtaWriteBe32(&send_buf[send_len], OtaStatus.off_len);
     send_len += 4U;
 
     OtaSendFrame(send_buf, send_len);
@@ -243,7 +221,7 @@ static void OtaSendData06(uint8_t result)
     send_buf[send_len++] = OTA_CMD_FILE_RESULT;
     send_buf[send_len++] = file->itype;
     send_buf[send_len++] = file->apply;
-    OtaWriteLe16(&send_buf[send_len], file->unid);
+    OtaWriteBe16(&send_buf[send_len], file->unid);
     send_len += 2U;
     send_buf[send_len++] = result;
 
@@ -368,7 +346,7 @@ static uint8_t OtaPacketCrc16Ok(uint8_t *frame, uint16_t packet_len)
     uint16_t crc_recv;
 
     crc_calc = crc_16(&frame[26], packet_len);
-    crc_recv = OtaReadLe16(&frame[26U + packet_len]);
+    crc_recv = OtaReadBe16(&frame[26U + packet_len]);
 
     return (crc_calc == crc_recv) ? 1U : 0U;
 }
@@ -426,14 +404,14 @@ static void OtaHandleFileInfo(uint8_t *frame, uint16_t len)
     OtaStatus.now_num = frame[6];
     OtaStatus.off_position = 0UL;
     OtaStatus.off_len = OTA_PACKET_BYTES;
-    OtaStatus.all_size = OtaReadLe32(&frame[7]);
+    OtaStatus.all_size = OtaReadBe32(&frame[7]);
 
     file = &OtaStatus.file[OtaStatus.now_num];
     file->itype = frame[11];
     file->apply = frame[12];
-    file->unid = OtaReadLe16(&frame[13]);
-    file->size = OtaReadLe32(&frame[15]);
-    file->crc32 = OtaReadLe32(&frame[crc_index]);
+    file->unid = OtaReadBe16(&frame[13]);
+    file->size = OtaReadBe32(&frame[15]);
+    file->crc32 = OtaReadBe32(&frame[crc_index]);
     file->flash_start = OtaStatus.flash_start_num;
 
     blocks = OtaCeilDiv32(file->size, OTA_PACKET_BYTES);

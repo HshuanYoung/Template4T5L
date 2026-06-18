@@ -254,8 +254,13 @@ extern uint32_t sysFCLK;
 /**
  * @brief UART通用帧缓冲区大小
  * @details 所有UART接口共用的数据帧缓冲区大小，单位为字节
+ * @note OTA开启时需容纳4KB数据帧及AB CD协议头和CRC
  */
+#if otaOTA_ENABLED
+#define uartUART_COMMON_FRAME_SIZE     4500
+#else
 #define uartUART_COMMON_FRAME_SIZE     2000
+#endif /* otaOTA_ENABLED */
 
 /**
  * @brief Modbus协议支持使能标志
