@@ -519,7 +519,7 @@ static void OtaWritePacketToNand(uint8_t *frame, uint16_t packet_len)
 /**
  * @brief 校验当前文件CRC32
  * @return 1=校验通过，0=校验失败
- * @note otaCRC32_CHECK_ENABLED为0时直接返回通过，便于调试
+ * @note otaCRC32_CHECK_ENABLED为0或服务器下发CRC32为0时直接返回通过
  */
 static uint8_t OtaFileCrcOk(void)
 {
@@ -532,6 +532,15 @@ static uint8_t OtaFileCrcOk(void)
     return 1U;
     #else
     file = &OtaStatus.file[OtaStatus.now_num];
+    /**
+     * @note 参考工程会将计算出的crc32置0后参与比较；
+     *       R11下发crc32为空时按0处理，此时应兼容放行。
+     */
+    if(file->crc32 == 0UL)
+    {
+        return 1U;
+    }
+
     blocks = OtaCeilDiv32(file->size, OTA_PACKET_BYTES);
     nand_addr = otaNAND_START_ADDR + ((uint32_t)file->flash_start * OTA_PACKET_BYTES);
 
