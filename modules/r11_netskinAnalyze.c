@@ -1228,9 +1228,9 @@ static void R11EnergyAnalyzeCalcResult(uint16_t dense_level,uint16_t thick_level
 	float kc_arr[6] = {1.00,0.80,0.80,0.60,0.40,0.40};
 	float kd_arr[3] = {0.65,0.80,1.00};
 	float km_arr[3] = {0.55,0.75,0.95};
-	energy_k_total = 0.4 * ks_arr[analyze.hair_analyze.skin_level+1] + 0.25 * kc_arr[analyze.hair_analyze.hair_level+1] + 0.2 * kd_arr[dense_level] + 0.15 * km_arr[thick_level];
+	energy_k_total = 0.4 * ks_arr[analyze.hair_analyze.skin_level-1] + 0.25 * kc_arr[analyze.hair_analyze.hair_level-1] + 0.2 * kd_arr[thick_level-1] + 0.15 * km_arr[dense_level-1];
 	energy_e_final = 8.0 * energy_k_total;
-	energy_f_final = 5.0 * thick_level * 0.85 + 1 * 0.15;
+	energy_f_final = 5.0 * km_arr[dense_level-1] * 0.85 + 1 * 0.15;
 	write_dgus_vp(analyzeENERGY_K_TOTAL_ADDR,(uint8_t*)&energy_k_total,2);
 	write_dgus_vp(analyzeENERGY_E_FINAL_ADDR,(uint8_t*)&energy_e_final,2);
 	write_dgus_vp(analyzeENERGY_F_FINAL_ADDR,(uint8_t*)&energy_f_final,2);
@@ -2237,7 +2237,7 @@ void R11NetskinAnalyzeTask(void)
 		#if R11_HAIR_ANALYZE_ENABLED
 		R11AnalyzeTask();
 		R11FaceTypeChooseTask();
-		R11AutoCapPictureAndAnalyze();
+		// R11AutoCapPictureAndAnalyze();
 		#endif /*R11_HAIR_ANALYZE_ENABLED */
 	}
 }
