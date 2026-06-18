@@ -42,13 +42,39 @@
 #define OTA_FILE_INFO_SIZE           4U
 #define OTA_FILE_INFO_COUNT          (256U + 128U)
 
+/**
+ * @brief OTA升级头文件结构体
+ * @details 结构布局与参考工程__OTA_HEADER保持一致，整体大小固定为4KB。
+ */
+typedef struct
+{
+    uint8_t head_name[4];          /**< 升级头标识，参考工程逻辑值为0x43335AA5UL */
+    uint8_t block4k[4];            /**< 保留字段，按参考工程默认清零 */
+    uint8_t first128m_crc32[4];    /**< 保留字段，按参考工程默认清零 */
+    uint8_t second128m_crc32[4];   /**< 保留字段，按参考工程默认清零 */
+    uint8_t file_info[OTA_FILE_INFO_COUNT][OTA_FILE_INFO_SIZE]; /**< 文件索引表 */
+    uint8_t reserved[OTA_HEADER_BYTES - OTA_FILE_INFO_OFFSET -
+                     (OTA_FILE_INFO_COUNT * OTA_FILE_INFO_SIZE) - 2U]; /**< 保留区 */
+    uint8_t header_crc16[2];       /**< 头文件CRC16，低字节在前 */
+} OtaHeaderBlock;
+
+/**
+ * @brief OTA 4KB工作缓冲联合体
+ * @details 下载数据和升级头文件复用同一块xdata缓冲，避免从UART局部帧直接写DGUS VP。
+ */
+typedef union
+{
+    uint8_t raw[OTA_HEADER_BYTES]; /**< 4KB原始块视图 */
+    OtaHeaderBlock header;         /**< 4KB升级头结构体视图 */
+} OtaVpBlockUnion;
+
 OtaContext OtaStatus;                /**< OTA全局运行上下文 */
 uint16_t OtaTimeout;                 /**< OTA超时计数，10ms递减一次 */
 uint8_t OtaStep = OTA_STEP_IDLE;     /**< OTA当前等待步骤 */
 uint8_t OtaCompleteFlag;             /**< OTA完成标志 */
 
 static uint16_t xdata OtaTimeoutReload;             /**< OTA超时重装值 */
-static uint8_t xdata OtaHeaderBuffer[OTA_HEADER_BYTES]; /**< OTA 4KB头文件缓存 */
+static OtaVpBlockUnion xdata OtaVpBlock;            /**< OTA 4KB稳定工作缓冲 */
 static uint8_t OtaLastResult = 2U;                  /**< 06命令最近一次回复结果，用于超时重发 */
 
 /**
@@ -112,6 +138,21 @@ static void OtaWriteBe32(uint8_t *buf, uint32_t value)
     buf[1] = (uint8_t)(value >> 16);
     buf[2] = (uint8_t)(value >> 8);
     buf[3] = (uint8_t)value;
+}
+
+/**
+ * @brief 写入小端32位整数
+ * @param[out] buf 目标数据缓冲区指针
+ * @param[in] value 待写入的32位整数
+ * @return 无
+ * @note 用于OTA头文件本地结构体字段，保持参考工程0x43335AA5UL写法语义
+ */
+static void OtaWriteLe32(uint8_t *buf, uint32_t value)
+{
+    buf[0] = (uint8_t)value;
+    buf[1] = (uint8_t)(value >> 8);
+    buf[2] = (uint8_t)(value >> 16);
+    buf[3] = (uint8_t)(value >> 24);
 }
 
 /**
@@ -304,20 +345,43 @@ static uint32_t OtaReadNandCrc32(void)
 }
 
 /**
- * @brief 清空DGUS数据缓存区
- * @param[in] vp_addr 待清空的DGUS VP起始地址
+ * @brief 清空OTA 4KB工作缓冲
+ * @param 无
  * @return 无
- * @note 清空长度固定为4KB，用于避免末包残留旧数据
  */
-static void OtaClearDgusBuffer(uint16_t vp_addr)
+static void OtaClearWorkBlock(void)
 {
-    uint8_t zero_buf[8];
-    uint16_t i;
+    memset(OtaVpBlock.raw, 0, sizeof(OtaVpBlock.raw));
+}
 
-    memset(zero_buf, 0, sizeof(zero_buf));
-    for(i = 0U; i < (OTA_PACKET_BYTES / sizeof(zero_buf)); i++)
+/**
+ * @brief 将OTA工作缓冲写入DGUS缓存VP
+ * @param[in] vp_addr DGUS缓存VP起始地址
+ * @return 无
+ * @note 4KB写入长度固定为2048个VP word
+ */
+static void OtaWriteWorkBlockToVp(uint16_t vp_addr)
+{
+    write_dgus_vp(vp_addr, OtaVpBlock.raw, OTA_HEADER_WORDS);
+}
+
+/**
+ * @brief 将OTA数据包复制到4KB工作缓冲
+ * @param[in] data OTA数据包数据区指针
+ * @param[in] packet_len 数据区长度，单位为字节
+ * @return 无
+ * @note 每次先清零完整4KB，避免末包残留旧数据
+ */
+static void OtaCopyPacketToWorkBlock(uint8_t *data, uint16_t packet_len)
+{
+    OtaClearWorkBlock();
+    if(packet_len > OTA_PACKET_BYTES)
     {
-        write_dgus_vp(vp_addr + (i * (sizeof(zero_buf) / 2U)), zero_buf, sizeof(zero_buf) / 2U);
+        packet_len = OTA_PACKET_BYTES;
+    }
+    if(packet_len != 0U)
+    {
+        memcpy(OtaVpBlock.raw, data, packet_len);
     }
 }
 
@@ -330,7 +394,8 @@ static void OtaClearDgusBuffer(uint16_t vp_addr)
 static void OtaClearNandHeader(void)
 {
     OtaWaitNandIdle();
-    OtaClearDgusBuffer(otaCACHE_VP_A);
+    OtaClearWorkBlock();
+    OtaWriteWorkBlockToVp(otaCACHE_VP_A);
     OtaStartNandWrite(otaNAND_START_ADDR, otaCACHE_VP_A, 1U);
 }
 
@@ -432,8 +497,6 @@ static void OtaHandleFileInfo(uint8_t *frame, uint16_t len)
 static void OtaWritePacketToNand(uint8_t *frame, uint16_t packet_len)
 {
     uint16_t vp_addr;
-    uint16_t write_words;
-    uint8_t last_word[2];
     uint32_t now_packet;
     uint32_t nand_addr;
     uint32_t progress;
@@ -449,22 +512,8 @@ static void OtaWritePacketToNand(uint8_t *frame, uint16_t packet_len)
         vp_addr = otaCACHE_VP_B;
     }
 
-    if(packet_len < OTA_PACKET_BYTES)
-    {
-        OtaClearDgusBuffer(vp_addr);
-    }
-
-    write_words = packet_len / 2U;
-    if(write_words != 0U)
-    {
-        write_dgus_vp(vp_addr, &frame[26], write_words);
-    }
-    if((packet_len & 0x01U) != 0U)
-    {
-        last_word[0] = frame[26U + packet_len - 1U];
-        last_word[1] = 0U;
-        write_dgus_vp(vp_addr + write_words, last_word, 1);
-    }
+    OtaCopyPacketToWorkBlock(&frame[26], packet_len);
+    OtaWriteWorkBlockToVp(vp_addr);
 
     if((OtaStatus.all_size != 0UL) && (now_packet >= otaDATA_START_BLOCK))
     {
@@ -598,18 +647,15 @@ static void OtaHandleFileResultAck(void)
  */
 static void OtaSetHeaderFileInfo(uint16_t index, OtaFileInfo *file, uint8_t block_count)
 {
-    uint16_t offset;
-
     if(index >= OTA_FILE_INFO_COUNT)
     {
         return;
     }
 
-    offset = OTA_FILE_INFO_OFFSET + (index * OTA_FILE_INFO_SIZE);
-    OtaHeaderBuffer[offset] = 0x5A;
-    OtaHeaderBuffer[offset + 1U] = block_count;
-    OtaHeaderBuffer[offset + 2U] = (uint8_t)file->flash_start;
-    OtaHeaderBuffer[offset + 3U] = (uint8_t)(file->flash_start >> 8);
+    OtaVpBlock.header.file_info[index][0] = 0x5A;
+    OtaVpBlock.header.file_info[index][1] = block_count;
+    OtaVpBlock.header.file_info[index][2] = (uint8_t)file->flash_start;
+    OtaVpBlock.header.file_info[index][3] = (uint8_t)(file->flash_start >> 8);
 }
 
 /**
@@ -626,11 +672,8 @@ static void OtaBuildHeader(void)
     uint32_t block_count;
     OtaFileInfo *file;
 
-    memset(OtaHeaderBuffer, 0, sizeof(OtaHeaderBuffer));
-    OtaHeaderBuffer[0] = 0xA5;
-    OtaHeaderBuffer[1] = 0x5A;
-    OtaHeaderBuffer[2] = 0x33;
-    OtaHeaderBuffer[3] = 0x43;
+    OtaClearWorkBlock();
+    OtaWriteLe32(OtaVpBlock.header.head_name, 0x43335AA5UL);
 
     for(i = 0U; i < OtaStatus.total_num; i++)
     {
@@ -670,9 +713,9 @@ static void OtaBuildHeader(void)
         }
     }
 
-    crc16 = crc_16(OtaHeaderBuffer, OTA_HEADER_BYTES - 2U);
-    OtaHeaderBuffer[OTA_HEADER_BYTES - 2U] = (uint8_t)crc16;
-    OtaHeaderBuffer[OTA_HEADER_BYTES - 1U] = (uint8_t)(crc16 >> 8);
+    crc16 = crc_16(OtaVpBlock.raw, OTA_HEADER_BYTES - 2U);
+    OtaVpBlock.header.header_crc16[0] = (uint8_t)crc16;
+    OtaVpBlock.header.header_crc16[1] = (uint8_t)(crc16 >> 8);
 }
 
 /**
@@ -690,7 +733,7 @@ static void OtaFinishUpgrade(void)
     SysEnterCritical();
 
     OtaBuildHeader();
-    write_dgus_vp(otaCACHE_VP_A, OtaHeaderBuffer, OTA_HEADER_WORDS);
+    OtaWriteWorkBlockToVp(otaCACHE_VP_A);
     OtaWaitNandIdle();
     OtaStartNandWrite(otaNAND_START_ADDR, otaCACHE_VP_A, 1U);
     OtaWaitNandIdle();
