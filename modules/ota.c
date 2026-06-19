@@ -321,9 +321,10 @@ static void OtaStartNandWrite(uint32_t nand_addr, uint16_t vp_addr, uint16_t blo
     cmd[1] = 0x04;
     OtaWriteBe32(&cmd[2], nand_addr);
     OtaWriteBe16(&cmd[6], vp_addr);
-    OtaWriteBe16(&cmd[8], block_num);
-    cmd[10] = 0U;
-    cmd[11] = 0U;
+    cmd[8] = block_num & 0xFF;
+    cmd[9] = 0;
+    cmd[10] = 0;
+    cmd[11] = 0;
     write_dgus_vp(OTA_NAND_CMD_ADDR, cmd, 6);
 }
 
@@ -529,7 +530,6 @@ static void OtaWritePacketToNand(uint8_t *frame, uint16_t packet_len)
     }
 
     OtaCopyPacketToWorkBlock(&frame[26], packet_len);
-    UartSendData(&Uart2, OtaVpBlock.raw, 200);
     OtaWriteWorkBlockToVp(vp_addr);
 
     if((OtaStatus.all_size != 0UL) && (now_packet >= otaDATA_START_BLOCK))
@@ -767,21 +767,6 @@ static void OtaFinishUpgrade(void)
     OtaCompleteFlag = 1U;
     write_dgus_vp(otaUPGRADE_FLAG_ADDR, (uint8_t *)&complete_flag_word, 1);
     DgusToFlash(flashMAIN_BLOCK_ORDER, otaUPGRADE_FLAG_ADDR, otaUPGRADE_FLAG_ADDR, 2);
-
-    /**
-     * @note Uart2发送依赖中断，调试输出必须在开中断状态下进行。
-     */
-    delay_ms(2000);
-    UartSendData(&Uart2, OtaVpBlock.header.header_crc16, 2);
-    delay_ms(1000);
-    UartSendData(&Uart2, &OtaVpBlock.header.file_info[0], 200);
-    delay_ms(1000);
-    UartSendData(&Uart2, &OtaVpBlock.header.file_info[50], 200);
-    delay_ms(1000);
-    UartSendData(&Uart2, &OtaVpBlock.header.file_info[100], 200);
-    delay_ms(2000);
-
-    SysEnterCritical();
 
     OtaStatus.download_end_flag = 0U;
 
