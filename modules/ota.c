@@ -48,7 +48,7 @@
  */
 typedef struct
 {
-    uint8_t head_name[4];          /**< 升级头标识，VP写入值为0x4335、0x5AA5 */
+    uint8_t head_name[4];          /**< 升级头标识，VP写入值为0x4333、0x5AA5 */
     uint8_t block4k[4];            /**< 保留字段，按参考工程默认清零 */
     uint8_t first128m_crc32[4];    /**< 保留字段，按参考工程默认清零 */
     uint8_t second128m_crc32[4];   /**< 保留字段，按参考工程默认清零 */
@@ -498,6 +498,7 @@ static void OtaWritePacketToNand(uint8_t *frame, uint16_t packet_len)
     }
 
     OtaCopyPacketToWorkBlock(&frame[26], packet_len);
+    UartSendData(&Uart2, OtaVpBlock.raw, 200);
     OtaWriteWorkBlockToVp(vp_addr);
 
     if((OtaStatus.all_size != 0UL) && (now_packet >= otaDATA_START_BLOCK))
@@ -667,7 +668,7 @@ static void OtaBuildHeader(void)
     OtaFileInfo *file;
 
     OtaClearWorkBlock();
-    OtaWriteBe32(OtaVpBlock.header.head_name, 0x43355AA5UL);
+    OtaWriteBe32(OtaVpBlock.header.head_name, 0x43335AA5UL);
 
     for(i = 0U; i < OtaStatus.total_num; i++)
     {
@@ -708,8 +709,8 @@ static void OtaBuildHeader(void)
     }
 
     crc16 = crc_16(OtaVpBlock.raw, OTA_HEADER_BYTES - 2U);
-    OtaVpBlock.header.header_crc16[0] = (uint8_t)(crc16 >> 8);
-    OtaVpBlock.header.header_crc16[1] = (uint8_t)crc16;
+    OtaVpBlock.header.header_crc16[1] = (uint8_t)(crc16 >> 8);
+    OtaVpBlock.header.header_crc16[0] = (uint8_t)crc16;
 }
 
 /**
@@ -735,6 +736,16 @@ static void OtaFinishUpgrade(void)
     OtaCompleteFlag = 1U;
     write_dgus_vp(otaUPGRADE_FLAG_ADDR, (uint8_t *)&complete_flag_word, 1);
     DgusToFlash(flashMAIN_BLOCK_ORDER, otaUPGRADE_FLAG_ADDR, otaUPGRADE_FLAG_ADDR, 2);
+    SysEnterCritical();
+    delay_ms(2000);
+    UartSendData(&Uart2, OtaVpBlock.header.header_crc16, 2);
+    delay_ms(1000);
+    UartSendData(&Uart2, &OtaVpBlock.header.file_info[0], 200);
+    delay_ms(1000);
+    UartSendData(&Uart2, &OtaVpBlock.header.file_info[50], 200);
+    delay_ms(1000);
+    UartSendData(&Uart2, &OtaVpBlock.header.file_info[100], 200);
+    delay_ms(2000);
     SysEnterCritical();
 
     OtaStatus.download_end_flag = 0U;
