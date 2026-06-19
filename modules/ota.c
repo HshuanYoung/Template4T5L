@@ -55,7 +55,7 @@ typedef struct
     uint8_t file_info[OTA_FILE_INFO_COUNT][OTA_FILE_INFO_SIZE]; /**< 文件索引表 */
     uint8_t reserved[OTA_HEADER_BYTES - OTA_FILE_INFO_OFFSET -
                      (OTA_FILE_INFO_COUNT * OTA_FILE_INFO_SIZE) - 2U]; /**< 保留区 */
-    uint8_t header_crc16[2];       /**< 头文件CRC16，高字节在前 */
+    uint8_t header_crc16[2];       /**< 头文件CRC16，低字节在前 */
 } OtaHeaderBlock;
 
 /**
@@ -138,6 +138,37 @@ static void OtaWriteBe32(uint8_t *buf, uint32_t value)
     buf[1] = (uint8_t)(value >> 16);
     buf[2] = (uint8_t)(value >> 8);
     buf[3] = (uint8_t)value;
+}
+
+/**
+ * @brief 计算xdata缓冲区CRC16
+ * @details OTA头文件位于模块级xdata缓冲，本函数显式使用xdata指针读取，
+ *          避免C51地址空间不一致导致CRC读取数据异常。
+ * @param[in] buf 待计算的xdata数据缓冲区指针
+ * @param[in] len 数据长度，单位为字节
+ * @return CRC16计算结果
+ */
+static uint16_t OtaCrc16Xdata(uint8_t xdata *buf, uint16_t len)
+{
+    uint8_t i;
+    uint16_t crc = 0xFFFFU;
+
+    while(len-- != 0U)
+    {
+        crc ^= ((uint16_t)(*buf++) & 0x00FFU);
+        for(i = 0U; i < 8U; i++)
+        {
+            if((crc & 0x0001U) != 0U)
+            {
+                crc = (crc >> 1) ^ 0xA001U;
+            }else
+            {
+                crc >>= 1;
+            }
+        }
+    }
+
+    return crc;
 }
 
 /**
@@ -649,8 +680,8 @@ static void OtaSetHeaderFileInfo(uint16_t index, OtaFileInfo *file, uint8_t bloc
 
     OtaVpBlock.header.file_info[index][0] = 0x5A;
     OtaVpBlock.header.file_info[index][1] = block_count;
-    OtaVpBlock.header.file_info[index][2] = (uint8_t)(file->flash_start >> 8);
-    OtaVpBlock.header.file_info[index][3] = (uint8_t)file->flash_start;
+    OtaVpBlock.header.file_info[index][2] = (uint8_t)file->flash_start;
+    OtaVpBlock.header.file_info[index][3] = (uint8_t)(file->flash_start >> 8);
 }
 
 /**
@@ -708,9 +739,9 @@ static void OtaBuildHeader(void)
         }
     }
 
-    crc16 = crc_16(OtaVpBlock.raw, OTA_HEADER_BYTES - 2U);
-    OtaVpBlock.header.header_crc16[1] = (uint8_t)(crc16 >> 8);
+    crc16 = OtaCrc16Xdata(OtaVpBlock.raw, OTA_HEADER_BYTES - 2U);
     OtaVpBlock.header.header_crc16[0] = (uint8_t)crc16;
+    OtaVpBlock.header.header_crc16[1] = (uint8_t)(crc16 >> 8);
 }
 
 /**
@@ -736,7 +767,10 @@ static void OtaFinishUpgrade(void)
     OtaCompleteFlag = 1U;
     write_dgus_vp(otaUPGRADE_FLAG_ADDR, (uint8_t *)&complete_flag_word, 1);
     DgusToFlash(flashMAIN_BLOCK_ORDER, otaUPGRADE_FLAG_ADDR, otaUPGRADE_FLAG_ADDR, 2);
-    SysEnterCritical();
+
+    /**
+     * @note Uart2发送依赖中断，调试输出必须在开中断状态下进行。
+     */
     delay_ms(2000);
     UartSendData(&Uart2, OtaVpBlock.header.header_crc16, 2);
     delay_ms(1000);
@@ -746,6 +780,7 @@ static void OtaFinishUpgrade(void)
     delay_ms(1000);
     UartSendData(&Uart2, &OtaVpBlock.header.file_info[100], 200);
     delay_ms(2000);
+
     SysEnterCritical();
 
     OtaStatus.download_end_flag = 0U;
