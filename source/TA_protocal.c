@@ -1,472 +1,808 @@
 #include "TA_protocal.h"
+#include "rtc.h"
 #include "sys.h"
+#include <string.h>
+
+/**
+ * @file    TA_protocal.c
+ * @brief   C51 TA兼容串口协议处理
+ * @details 本文件移植自C51工程的Uart2WaterReadFrame协议，
+ *          帧格式为AA + 2字节长度 + 命令 + 数据 + CC 33 C3 3C。
+ */
+
 #if uartTA_PROTOCOL_ENABLED
-#define BASIC_GRAPH_ADDR 0x3900
-#define STRING_XPOINT_SIZE    400
-#define STRING_YPOINT_SIZE    50
-#define MAX_STRING_NUM      10
 
-uint16_t string_vp_addr[MAX_STRING_NUM] = {0x3000,0x3020,0x3040,0x3060,0x3080,0x30A0,0x30C0,0x30E0,0x3100,0x3120};
-uint16_t string_sp_addr[MAX_STRING_NUM] = {0x2000,0x2020,0x2040,0x2060,0x2080,0x20A0,0x20C0,0x20E0,0x2100,0x2120};
-uint16_t number_vp_addr[MAX_STRING_NUM] = {0x3200,0x3220,0x3240,0x3260,0x3280,0x32A0,0x32C0,0x32E0,0x3300,0x3320};
-uint16_t number_sp_addr[MAX_STRING_NUM] = {0x2200,0x2220,0x2240,0x2260,0x2280,0x22A0,0x22C0,0x22E0,0x2300,0x2320};
+/* C51 TA协议固定帧头帧尾 */
+#define TA_FRAME_HEAD              0xAAU
+#define TA_FRAME_TAIL0             0xCCU
+#define TA_FRAME_TAIL1             0x33U
+#define TA_FRAME_TAIL2             0xC3U
+#define TA_FRAME_TAIL3             0x3CU
 
-static uint16_t FindNumberIsInArray(uint16_t x_point,uint16_t y_point,uint16_t *array,uint16_t len)
+#define TA_SEND_BUF_SIZE           256U
+#define TA_STRING_CLEAR_WORDS      0x80U
+#define TA_STRING_CLEAR_BYTES      0x100U
+#define TA_AUTO_UPLOAD_ADDR        sysDGUS_AUTO_UPLOAD_VP_ADDR
+
+/**
+ * @brief 获取指定UART的发送缓冲区大小
+ * @param uart UART通信接口指针
+ * @return 发送缓冲区容量，未知UART返回0
+ * @note 用于限制TA应答帧长度，避免写满发送环形缓冲区。
+ */
+static uint16_t TAGetUartTxLimit(UART_TYPE *uart)
 {
-    uint16_t i;
-    for(i=0;i<len;i++)
+    #if uartUART2_ENABLED
+    if(uart == &Uart2)
     {
-        if(array[i] == x_point&&array[i+MAX_STRING_NUM] == y_point)
-        {
-            return i;
-        }
+        return uartUART2_TXBUF_SIZE;
     }
+    #endif /* uartUART2_ENABLED */
 
-    for(i=0;i<MAX_STRING_NUM;i++)
+    #if uartUART3_ENABLED
+    if(uart == &Uart3)
     {
-        if(array[i] == 0)
-        {
-            array[i] = x_point;
-            array[i+MAX_STRING_NUM] = y_point;
-            return i;
-        }
+        return uartUART3_TXBUF_SIZE;
     }
-    return 0xffff;
+    #endif /* uartUART3_ENABLED */
+
+    #if uartUART4_ENABLED
+    if(uart == &Uart4)
+    {
+        return uartUART4_TXBUF_SIZE;
+    }
+    #endif /* uartUART4_ENABLED */
+
+    #if uartUART5_ENABLED
+    if(uart == &Uart5)
+    {
+        return uartUART5_TXBUF_SIZE;
+    }
+    #endif /* uartUART5_ENABLED */
+
+    return 0U;
 }
 
 
-static void TAClearAllStringAndNumber(void)
+/**
+ * @brief 带长度保护的TA串口发送
+ * @param uart UART通信接口指针
+ * @param buf 待发送缓冲区
+ * @param len 待发送字节数
+ */
+static void TASendData(UART_TYPE *uart, uint8_t *buf, uint16_t len)
 {
-    uint16_t i;
-    uint8_t zero_arr[MAX_STRING_NUM*2] = {0};
+    uint16_t tx_limit;
 
-    /* 清空基本图形显示 */
-    write_dgus_vp(BASIC_GRAPH_ADDR,(uint8_t*)&zero_arr[0],10);    
-    for(i=0;i<MAX_STRING_NUM;i++)
+    if((uart == NULL) || (buf == NULL) || (len == 0U))
     {
-        /* 清空字符串显示*/
-        write_dgus_vp(string_vp_addr[i],&zero_arr[0],MAX_STRING_NUM);
+        return;
+    }
 
-        /* 清空数字显示，将数字写到0，0位置*/
-        write_dgus_vp(number_sp_addr[i] + 0x01,&zero_arr[0],2);
-        write_dgus_vp(number_vp_addr[i],&zero_arr[0],MAX_STRING_NUM);
+    tx_limit = TAGetUartTxLimit(uart);
+    if((tx_limit == 0U) || (len >= tx_limit))
+    {
+        return;
+    }
+
+    UartSendData(uart, buf, len);
+}
+
+
+/**
+ * @brief 将TA派生命令转发到UART5
+ * @param buf 待转发数据
+ * @param len 数据长度
+ * @note C51协议中的联网、升级相关命令通过UART5转发给外部模块。
+ */
+static void TAForwardToUart5(uint8_t *buf, uint16_t len)
+{
+    #if uartUART5_ENABLED
+    TASendData(&Uart5, buf, len);
+    #else
+    (void)buf;
+    (void)len;
+    #endif /* uartUART5_ENABLED */
+}
+
+
+/**
+ * @brief 写入C51 TA协议帧尾
+ * @param buf 目标帧缓冲区
+ * @param tail_index 帧尾起始下标
+ */
+static void TASetTail(uint8_t *buf, uint16_t tail_index)
+{
+    buf[tail_index] = TA_FRAME_TAIL0;
+    buf[tail_index + 1U] = TA_FRAME_TAIL1;
+    buf[tail_index + 2U] = TA_FRAME_TAIL2;
+    buf[tail_index + 3U] = TA_FRAME_TAIL3;
+}
+
+
+/**
+ * @brief 解析C51 TA协议长度字段
+ * @param frame 协议帧
+ * @param data_len 输出C51逻辑数据长度
+ * @return 1=解析成功，0=解析失败
+ * @note 普通命令总帧长为len+3；0x42在原C51代码中按len+5处理，
+ *       因此这里将其逻辑长度补偿为len+2，以统一后续校验。
+ */
+static uint8_t TAGetLegacyDataLen(uint8_t *frame, uint16_t *data_len)
+{
+    uint16_t raw_len;
+
+    if((frame == NULL) || (data_len == NULL))
+    {
+        return 0U;
+    }
+
+    raw_len = ((uint16_t)frame[1] << 8) | frame[2];
+    if(frame[3] == 0x42U)
+    {
+        if(raw_len > 0xFFFDU)
+        {
+            return 0U;
+        }
+        *data_len = raw_len + 2U;
+    }
+    else
+    {
+        *data_len = raw_len;
+    }
+
+    return 1U;
+}
+
+
+/**
+ * @brief 校验TA协议完整帧
+ * @param frame 协议帧
+ * @param len 完整帧长度
+ * @param data_len 输出C51逻辑数据长度
+ * @return 1=帧合法，0=帧非法
+ */
+static uint8_t TAFrameIsValid(uint8_t *frame, uint16_t len, uint16_t *data_len)
+{
+    if((frame == NULL) || (len < 7U) || (frame[0] != TA_FRAME_HEAD))
+    {
+        return 0U;
+    }
+
+    if(TAGetLegacyDataLen(frame, data_len) == 0U)
+    {
+        return 0U;
+    }
+
+    if((*data_len < 4U) || (len != (*data_len + 3U)))
+    {
+        return 0U;
+    }
+
+    if((frame[len - 4U] != TA_FRAME_TAIL0) ||
+       (frame[len - 3U] != TA_FRAME_TAIL1) ||
+       (frame[len - 2U] != TA_FRAME_TAIL2) ||
+       (frame[len - 1U] != TA_FRAME_TAIL3))
+    {
+        return 0U;
+    }
+
+    return 1U;
+}
+
+
+/**
+ * @brief 将C51数值区类型映射到DGUS VP地址
+ * @param addr_type C51地址类型
+ * @param offset C51地址偏移
+ * @param addr 输出DGUS VP地址
+ * @return 1=映射成功，0=未知类型
+ */
+static uint8_t TAGetNumberAddr(uint8_t addr_type, uint16_t offset, uint32_t *addr)
+{
+    if(addr == NULL)
+    {
+        return 0U;
+    }
+
+    if(addr_type == 0x08U)
+    {
+        *addr = 0x1000UL + offset;
+        return 1U;
+    }
+
+    if(addr_type == 0x02U)
+    {
+        *addr = 0xB000UL + offset;
+        return 1U;
+    }
+
+    return 0U;
+}
+
+
+/**
+ * @brief 十六进制数转BCD码
+ * @param value 待转换数值
+ * @return BCD编码结果
+ */
+static uint8_t TAHexToBcd(uint8_t value)
+{
+    return (uint8_t)(((value / 10U) << 4) | (value % 10U));
+}
+
+
+/**
+ * @brief 根据年月日计算星期
+ * @param year 年份后两位
+ * @param month 月
+ * @param day 日
+ * @return 星期值，格式与RTC驱动保持一致
+ */
+static uint8_t TACalcWeek(uint8_t year, uint8_t month, uint8_t day)
+{
+    uint16_t full_year;
+    uint8_t week;
+
+    full_year = (uint16_t)year + 2000U;
+    if(month < 3U)
+    {
+        month += 12U;
+        full_year--;
+    }
+
+    week = (uint8_t)((day + ((13U * (month + 1U)) / 5U) + full_year +
+                     (full_year / 4U) - (full_year / 100U) +
+                     (full_year / 400U)) % 7U);
+    return (uint8_t)(week + 1U);
+}
+
+
+/**
+ * @brief 处理0x82数值区写入命令
+ * @param frame 完整TA帧
+ * @param data_len C51逻辑数据长度
+ */
+static void TAHandleWriteNumber(uint8_t *frame, uint16_t data_len)
+{
+    uint16_t offset;
+    uint16_t write_words;
+    uint32_t data_addr;
+
+    if(data_len < 10U)
+    {
+        return;
+    }
+
+    offset = ((uint16_t)frame[6] << 8) | frame[7];
+    if(TAGetNumberAddr(frame[5], offset, &data_addr) == 0U)
+    {
+        return;
+    }
+
+    write_words = (data_len - 10U) >> 1;
+    if(write_words == 0U)
+    {
+        return;
+    }
+
+    write_dgus_vp(data_addr, &frame[9], write_words);
+}
+
+
+/**
+ * @brief 处理0x42字符串区写入命令
+ * @param frame 完整TA帧
+ * @param data_len C51逻辑数据长度
+ * @note C51原逻辑写字符串前会先清空目标字符串区。
+ */
+static void TAHandleWriteString(uint8_t *frame, uint16_t data_len)
+{
+    static uint8_t zero_arr[TA_STRING_CLEAR_BYTES] = {0};
+    uint16_t offset;
+    uint16_t write_words;
+    uint32_t data_addr;
+
+    if((data_len < 9U) || (frame[5] != 0x00U))
+    {
+        return;
+    }
+
+    offset = ((uint16_t)frame[6] << 8) | frame[7];
+    data_addr = 0x5000UL + offset;
+    write_words = (data_len - 9U) >> 1;
+
+    write_dgus_vp(data_addr, zero_arr, TA_STRING_CLEAR_WORDS);
+    if(write_words > 0U)
+    {
+        write_dgus_vp(data_addr, &frame[8], write_words);
     }
 }
 
 
+/**
+ * @brief 处理0x83数值区读取命令
+ * @param uart 应答UART
+ * @param frame 完整TA帧
+ * @param data_len C51逻辑数据长度
+ */
+static void TAHandleReadNumber(UART_TYPE *uart, uint8_t *frame, uint16_t data_len)
+{
+    uint8_t send_buf[TA_SEND_BUF_SIZE];
+    uint16_t offset;
+    uint16_t read_bytes;
+    uint16_t read_words;
+    uint16_t response_len;
+    uint16_t total_len;
+    uint16_t i;
+    uint32_t data_addr;
+
+    if(data_len < 9U)
+    {
+        return;
+    }
+
+    offset = ((uint16_t)frame[6] << 8) | frame[7];
+    if(TAGetNumberAddr(frame[5], offset, &data_addr) == 0U)
+    {
+        return;
+    }
+
+    read_bytes = frame[8];
+    read_words = read_bytes >> 1;
+    response_len = 9U + read_bytes;
+    total_len = response_len + 4U;
+    if(total_len > TA_SEND_BUF_SIZE)
+    {
+        return;
+    }
+
+    memset(send_buf, 0, total_len);
+    send_buf[0] = TA_FRAME_HEAD;
+    send_buf[1] = (uint8_t)(response_len >> 8);
+    send_buf[2] = (uint8_t)response_len;
+    send_buf[3] = 0x83U;
+    for(i = 0U; i < 5U; i++)
+    {
+        send_buf[4U + i] = frame[4U + i];
+    }
+
+    if(read_words > 0U)
+    {
+        read_dgus_vp(data_addr, &send_buf[9], (uint8_t)read_words);
+    }
+    TASetTail(send_buf, response_len);
+    TASendData(uart, send_buf, total_len);
+}
+
+
+/**
+ * @brief 处理0x43中的联网信息查询派生命令
+ * @param query_addr 查询地址
+ * @note FF00/FE80/FE00/FD80映射为UART5的66 04/05/06/07请求。
+ */
+static void TAForwardInfoQuery(uint16_t query_addr)
+{
+    uint8_t send_66[5] = {0xAAU, 0xBBU, 0x02U, 0x66U, 0x00U};
+
+    if(query_addr == 0xFF00U)
+    {
+        send_66[4] = 0x04U;
+    }
+    else if(query_addr == 0xFE80U)
+    {
+        send_66[4] = 0x05U;
+    }
+    else if(query_addr == 0xFE00U)
+    {
+        send_66[4] = 0x06U;
+    }
+    else if(query_addr == 0xFD80U)
+    {
+        send_66[4] = 0x07U;
+    }
+    else
+    {
+        return;
+    }
+
+    TAForwardToUart5(send_66, sizeof(send_66));
+}
+
+
+/**
+ * @brief 处理0x43字符串区读取命令
+ * @param uart 应答UART
+ * @param frame 完整TA帧
+ * @param data_len C51逻辑数据长度
+ */
+static void TAHandleReadString(UART_TYPE *uart, uint8_t *frame, uint16_t data_len)
+{
+    uint8_t send_buf[TA_SEND_BUF_SIZE];
+    uint16_t offset;
+    uint16_t read_bytes;
+    uint16_t read_words;
+    uint16_t response_len;
+    uint16_t total_len;
+    uint16_t i;
+    uint32_t data_addr;
+
+    if(data_len < 9U)
+    {
+        return;
+    }
+
+    offset = ((uint16_t)frame[6] << 8) | frame[7];
+    if(frame[5] == 0x01U)
+    {
+        TAForwardInfoQuery(offset);
+        return;
+    }
+
+    if(frame[5] != 0x00U)
+    {
+        return;
+    }
+
+    data_addr = 0x5000UL + offset;
+    read_bytes = frame[8];
+    read_words = read_bytes >> 1;
+    response_len = 9U + read_bytes;
+    total_len = response_len + 4U;
+    if(total_len > TA_SEND_BUF_SIZE)
+    {
+        return;
+    }
+
+    memset(send_buf, 0, total_len);
+    send_buf[0] = TA_FRAME_HEAD;
+    send_buf[1] = (uint8_t)(response_len >> 8);
+    send_buf[2] = (uint8_t)response_len;
+    send_buf[3] = 0x43U;
+    for(i = 0U; i < 5U; i++)
+    {
+        send_buf[4U + i] = frame[4U + i];
+    }
+
+    if(read_words > 0U)
+    {
+        read_dgus_vp(data_addr, &send_buf[9], (uint8_t)read_words);
+    }
+    TASetTail(send_buf, response_len);
+    TASendData(uart, send_buf, total_len);
+}
+
+
+/**
+ * @brief 处理0x32当前页面读取命令
+ * @param uart 应答UART
+ */
+static void TAHandleReadPage(UART_TYPE *uart)
+{
+    uint8_t send_buf[10];
+    uint16_t page_id;
+
+    page_id = ReadPageId();
+    send_buf[0] = TA_FRAME_HEAD;
+    send_buf[1] = 0x00U;
+    send_buf[2] = 0x07U;
+    send_buf[3] = 0x32U;
+    send_buf[4] = (uint8_t)(page_id >> 8);
+    send_buf[5] = (uint8_t)page_id;
+    TASetTail(send_buf, 6U);
+    TASendData(uart, send_buf, sizeof(send_buf));
+}
+
+
+/**
+ * @brief 处理0x9B RTC读取命令
+ * @param uart 应答UART
+ */
+static void TAHandleRtcRead(UART_TYPE *uart)
+{
+    uint8_t rtc_arr[8];
+    uint8_t send_buf[14];
+
+    memset(rtc_arr, 0, sizeof(rtc_arr));
+    read_dgus_vp(0x0010UL, rtc_arr, 4);
+
+    send_buf[0] = TA_FRAME_HEAD;
+    send_buf[1] = 0x00U;
+    send_buf[2] = 0x0BU;
+    send_buf[3] = 0x9BU;
+    send_buf[4] = rtc_arr[0];
+    send_buf[5] = rtc_arr[1];
+    send_buf[6] = rtc_arr[2];
+    send_buf[7] = rtc_arr[4];
+    send_buf[8] = rtc_arr[5];
+    send_buf[9] = rtc_arr[6];
+    TASetTail(send_buf, 10U);
+    TASendData(uart, send_buf, sizeof(send_buf));
+}
+
+
+/**
+ * @brief 处理0x9C RTC设置命令
+ * @param frame 完整TA帧
+ * @param data_len C51逻辑数据长度
+ */
+static void TAHandleRtcWrite(uint8_t *frame, uint16_t data_len)
+{
+    uint8_t rtc_arr[7];
+
+    if(data_len < 10U)
+    {
+        return;
+    }
+
+    rtc_arr[0] = TAHexToBcd(frame[4]);
+    rtc_arr[1] = TAHexToBcd(frame[5]);
+    rtc_arr[2] = TAHexToBcd(frame[6]);
+    rtc_arr[3] = TAHexToBcd(TACalcWeek(frame[4], frame[5], frame[6]));
+    rtc_arr[4] = TAHexToBcd(frame[7]);
+    rtc_arr[5] = TAHexToBcd(frame[8]);
+    rtc_arr[6] = TAHexToBcd(frame[9]);
+    RtcSetTime(rtc_arr);
+}
+
+
+/**
+ * @brief 处理0xE3升级启动命令
+ * @note 发送67 01到UART5后写入复位触发字。
+ */
+static void TAHandleUpgradeStart(void)
+{
+    uint8_t upd_start_arr[5] = {0xAAU, 0xBBU, 0x02U, 0x67U, 0x01U};
+    uint8_t rst_arr[4] = {0x55U, 0xAAU, 0x5AU, 0xA5U};
+
+    TAForwardToUart5(upd_start_arr, sizeof(upd_start_arr));
+    write_dgus_vp(0x00FCUL, rst_arr, 2);
+}
+
+
+/**
+ * @brief 处理0x93版本信息请求命令
+ * @note 按C51逻辑向UART5发送66 09。
+ */
+static void TAHandleVersionRequest(void)
+{
+    uint8_t send_66[5] = {0xAAU, 0xBBU, 0x02U, 0x66U, 0x09U};
+
+    TAForwardToUart5(send_66, sizeof(send_66));
+}
+
+
+/**
+ * @brief 处理0xEA IP信息设置转发命令
+ * @param frame 完整TA帧
+ * @param data_len C51逻辑数据长度
+ */
+static void TAHandleForwardIpInfo(uint8_t *frame, uint16_t data_len)
+{
+    uint8_t send_buf[TA_SEND_BUF_SIZE];
+    uint16_t i;
+
+    if((data_len < 5U) || (data_len > TA_SEND_BUF_SIZE) || ((data_len - 3U) > 0xFFU))
+    {
+        return;
+    }
+
+    memset(send_buf, 0, data_len);
+    send_buf[0] = 0xAAU;
+    send_buf[1] = 0xBBU;
+    send_buf[2] = (uint8_t)(data_len - 3U);
+    send_buf[3] = 0x66U;
+    send_buf[4] = 0x02U;
+    for(i = 4U; i < (data_len - 1U); i++)
+    {
+        send_buf[i + 1U] = frame[i];
+    }
+    TAForwardToUart5(send_buf, data_len);
+}
+
+
+/**
+ * @brief 处理0xE9 IP模式设置转发命令
+ * @param frame 完整TA帧
+ * @param data_len C51逻辑数据长度
+ */
+static void TAHandleForwardIpMode(uint8_t *frame, uint16_t data_len)
+{
+    uint8_t send_buf[6];
+
+    if(data_len < 9U)
+    {
+        return;
+    }
+
+    send_buf[0] = 0xAAU;
+    send_buf[1] = 0xBBU;
+    send_buf[2] = 0x03U;
+    send_buf[3] = 0x66U;
+    send_buf[4] = 0x03U;
+    send_buf[5] = frame[8];
+    TAForwardToUart5(send_buf, sizeof(send_buf));
+}
+
+
+/**
+ * @brief 处理C51 TA兼容协议帧
+ * @param uart 接收该帧的UART接口
+ * @param frame 完整协议帧
+ * @param len 完整帧长度
+ */
 void UartStandardTAProtocol(UART_TYPE *uart, uint8_t *frame, uint16_t len)
 {
-    uint16_t crc16,crc_flag,write_param[32];
-    uint16_t index,i;
-    uint8_t string_mode,number_mode,send_return_frame[20];
-    static uint16_t string_point_array[MAX_STRING_NUM*2] = {0};
-    static uint16_t number_point_array[MAX_STRING_NUM*2] = {0};
-    read_dgus_vp(sysDGUS_SYSTEM_CONFIG,(uint8_t*)&crc_flag,1);
-    crc_flag = crc_flag & 0x0080;
-    if(crc_flag != 0)
+    uint16_t data_len;
+    uint16_t page_id;
+
+    if(TAFrameIsValid(frame, len, &data_len) == 0U)
     {
-        crc16 = crc_16(frame,len-6);
-        if(crc16 != ((frame[len-6] << 8) | frame[len-5]))
-        {
-            return; 
-        }
+        return;
     }
-    if(frame[1] == 0x70)
-    {
-        TAClearAllStringAndNumber();
-        SwitchPageById((uint16_t)frame[2]);
-    }else if(frame[1] == 0x71)
-    {
-        write_param[0]=0x0006;
-        write_param[1]=0x0001;
-        write_param[2]=(uint16_t)frame[2];
-        write_param[3]=frame[3]<<8|frame[4];        //x坐标
-        write_param[4]=frame[5]<<8|frame[6];        //y坐标
-        write_param[5]=frame[7]<<8|frame[8];       
-        write_param[5]=write_param[3]+write_param[5];      //x+w坐标
-        write_param[6]=frame[9]<<8|frame[10];
-        write_param[6]=write_param[4]+write_param[6];      //y+h坐标
-        write_param[7]=frame[11]<<8|frame[12];        //x坐标
-        write_param[8]=frame[13]<<8|frame[14];        //y坐标
-        write_param[9]=0xff00;                                    //结束
-        write_dgus_vp(BASIC_GRAPH_ADDR,(uint8_t*)&write_param[0],10);    //写入模式
-    }else if(frame[1] == 0x98)
-    {
-        write_param[0] = frame[2]<<8|frame[3];    //写入x坐标
-        write_param[1] = frame[4]<<8|frame[5];    //写入y坐标
-        write_param[2] = frame[9]<<8|frame[10];   //写入颜色
-        index = FindNumberIsInArray(write_param[0],write_param[1],string_point_array,MAX_STRING_NUM);
-        if(index != 0xffff)
-        {
-            read_dgus_vp(string_sp_addr[index]+0x04,(uint8_t*)&write_param[3],5);
-            write_param[3] = write_param[0];
-            write_param[4] = write_param[1];
-            write_param[5] = write_param[0] + STRING_XPOINT_SIZE;
-            write_param[6] = write_param[1] + STRING_YPOINT_SIZE;
-            write_param[8] = 0x0000 | frame[6]; //字库位置
-            string_mode = frame[7]&0x0f;
-            /** 字体大小 */
-            if(string_mode == 0 || string_mode == 5)
-            {
-                switch(frame[8])
-                {
-                    /**
-                     * 00=8*8 01=6*12 02=8*16 03=12*24 04=16*32 05=20*40 06=24*48 07=28*56 08=32*64
-                     * 09(00)=12*12 0A(01)=16*16 0B(02)=24*24 0C(03)=32*32 0D(04)=40*40 0E(05)=48*48 0F(06)=56*56 
-                     * 10(07)=64*64 11(08)=40*80 12(09)=48*96 13(0A)=56*112 14(0B)=64*128 15(0C)=80*80 
-                     * 16(0D)=96*96 17(0E)=112*112 18(0F)=128*128 19(10)=6*8 1A(11)=8*10 1B(12)=8*12 
-                     * 1C(13)=100*200 1D(14)=200*200 1E(15)=48*64
-                     */
-                    case 0x00: write_param[9] = 0x08<<8|0x08;break;     
-                    case 0x01: write_param[9] = 0x06<<8|0x0C;break;    
-                    case 0x03: write_param[9] = 0x0C<<8|0x18;break;     
-                    case 0x04: write_param[9] = 0x10<<8|0x20;break;   
-                    case 0x05: write_param[9] = 0x14<<8|0x28;break;    
-                    case 0x06: write_param[9] = 0x18<<8|0x30;break;   
-                    case 0x07: write_param[9] = 0x1C<<8|0x38;break;    
-                    case 0x08: write_param[9] = 0x20<<8|0x40;break;  
-                    case 0x09: write_param[9] = 0x0C<<8|0x0C;break; 
-                    case 0x0A: write_param[9] = 0x10<<8|0x10;break; 
-                    case 0x0B: write_param[9] = 0x18<<8|0x18;break; 
-                    case 0x0C: write_param[9] = 0x20<<8|0x20;break; 
-                    case 0x0D: write_param[9] = 0x28<<8|0x28;break; 
-                    case 0x0E: write_param[9] = 0x30<<8|0x30;break; 
-                    case 0x0F: write_param[9] = 0x38<<8|0x38;break;    
-                    case 0x10: write_param[9] = 0x40<<8|0x40;break;    
-                    case 0x11: write_param[9] = 0x28<<8|0x50;break;    
-                    case 0x12: write_param[9] = 0x30<<8|0x60;break;    
-                    case 0x13: write_param[9] = 0x38<<8|0x70;break;    
-                    case 0x14: write_param[9] = 0x40<<8|0x80;break;    
-                    case 0x15: write_param[9] = 0x50<<8|0x50;break;    
-                    case 0x16: write_param[9] = 0x60<<8|0x60;break;    
-                    case 0x17: write_param[9] = 0x70<<8|0x70;break;    
-                    case 0x18: write_param[9] = 0x80<<8|0x80;break;    
-                    case 0x19: write_param[9] = 0x06<<8|0x08;break;    
-                    case 0x1A: write_param[9] = 0x08<<8|0x0A;break;    
-                    case 0x1B: write_param[9] = 0x08<<8|0x0C;break;
-                    case 0x1C: write_param[9] = 0x64<<8|0xc8;break;
-                    case 0x1D: write_param[9] = 0xc8<<8|0xc8;break;
-                    case 0x1E: write_param[9] = 0x30<<8|0x40;break;   
 
-                    default:write_param[9] = 0x08<<8|0x08;break;    
-                }
-            }else{
-                switch (frame[8])
-                {
-                    case 0x00: write_param[9] = 0x0C<<8|0x0C;break; 
-                    case 0x01: write_param[9] = 0x10<<8|0x10;break; 
-                    case 0x02: write_param[9] = 0x18<<8|0x18;break; 
-                    case 0x03: write_param[9] = 0x20<<8|0x20;break; 
-                    case 0x04: write_param[9] = 0x28<<8|0x28;break; 
-                    case 0x05: write_param[9] = 0x30<<8|0x30;break; 
-                    case 0x06: write_param[9] = 0x38<<8|0x38;break;    
-                    case 0x07: write_param[9] = 0x40<<8|0x40;break;    
-                    case 0x08: write_param[9] = 0x28<<8|0x50;break;    
-                    case 0x09: write_param[9] = 0x30<<8|0x60;break;    
-                    case 0x0A: write_param[9] = 0x38<<8|0x70;break;    
-                    case 0x0B: write_param[9] = 0x40<<8|0x80;break;    
-                    case 0x0C: write_param[9] = 0x50<<8|0x50;break;    
-                    case 0x0D: write_param[9] = 0x60<<8|0x60;break;    
-                    case 0x0E: write_param[9] = 0x70<<8|0x70;break;    
-                    case 0x0F: write_param[9] = 0x80<<8|0x80;break;    
-                    case 0x10: write_param[9] = 0x06<<8|0x08;break;    
-                    case 0x11: write_param[9] = 0x08<<8|0x0A;break;    
-                    case 0x12: write_param[9] = 0x08<<8|0x0C;break;
-                    case 0x13: write_param[9] = 0x64<<8|0xc8;break;
-                    case 0x14: write_param[9] = 0xc8<<8|0xc8;break;    
-                    case 0x15: write_param[9] = 0x30<<8|0x40;break;
-                    default:write_param[9] = 0x0C<<8|0x0C;break;
-                }
-            }
-            
-            read_dgus_vp(string_sp_addr[index]+0x0b,(uint8_t*)&write_param[10],1);
-            write_param[10] = (write_param[10]&0xf0ff) | (string_mode<<8); //显示模式
-            write_dgus_vp(string_sp_addr[index]+0x01,(uint8_t*)&write_param[0],11);
-            write_dgus_vp(string_vp_addr[index],&frame[11],(len-17+1)>>1);
-        }
-    }else if(frame[1] == 0x54)
+    switch(frame[3])
     {
-        /* 显示16*16 GBK字符串，字库是51*/
-        write_param[0] = frame[2]<<8|frame[3];    //写入x坐标
-        write_param[1] = frame[4]<<8|frame[5];    //写入y坐标
-        index = FindNumberIsInArray(write_param[0],write_param[1],string_point_array,MAX_STRING_NUM);
-        if(index != 0xffff)
-        {
-            read_dgus_vp(string_sp_addr[index]+0x03,(uint8_t*)&write_param[2],6);
-            write_param[3] = write_param[0];
-            write_param[4] = write_param[1];
-            write_param[5] = write_param[0] + STRING_XPOINT_SIZE;
-            write_param[6] = write_param[1] + STRING_YPOINT_SIZE;
-            write_param[8] = 0x0033; //字库位置
-            write_param[9] = 0x10<<8|0x10; //字体大小16*16
-            read_dgus_vp(string_sp_addr[index]+0x0b,(uint8_t*)&write_param[10],1);
-            write_param[10] = (write_param[10]&0x00ff) | 0x0200; //显示模式
-            write_dgus_vp(string_sp_addr[index]+0x01,(uint8_t*)&write_param[0],11);
-            write_dgus_vp(string_vp_addr[index],&frame[6],(len-12+1)>>1);
-        }
-    }else if(frame[1] == 0x56)
-    {
-        /* 显示32*32 GB2312字符串，字库是57*/
-        write_param[0] = frame[2]<<8|frame[3];    //写入x坐标
-        write_param[1] = frame[4]<<8|frame[5];    //写入y坐标
-        index = FindNumberIsInArray(write_param[0],write_param[1],string_point_array,MAX_STRING_NUM);
-        if(index != 0xffff)
-        {
-            read_dgus_vp(string_sp_addr[index]+0x03,(uint8_t*)&write_param[2],6);
-            write_param[3] = write_param[0];
-            write_param[4] = write_param[1];
-            write_param[5] = write_param[0] + STRING_XPOINT_SIZE;
-            write_param[6] = write_param[1] + STRING_YPOINT_SIZE;
-            write_param[8] = 0x0039; //字库位置
-            write_param[9] = 0x20<<8|0x20; //字体大小32*32
-            read_dgus_vp(string_sp_addr[index]+0x0b,(uint8_t*)&write_param[10],1);
-            write_param[10] = (write_param[10]&0x00ff) | 0x0100; //显示模式
-            write_dgus_vp(string_sp_addr[index]+0x01,(uint8_t*)&write_param[0],11);
-            write_dgus_vp(string_vp_addr[index],&frame[6],(len-12+1)>>1);
-        }
-    }else if(frame[1] == 0x6e)
-    {
-        /* 显示12*12 GBK字符串，字库是48*/
-        write_param[0] = frame[2]<<8|frame[3];    //写入x坐标
-        write_param[1] = frame[4]<<8|frame[5];    //写入y坐标
-        index = FindNumberIsInArray(write_param[0],write_param[1],string_point_array,MAX_STRING_NUM);
-        if(index != 0xffff)
-        {
-            read_dgus_vp(string_sp_addr[index]+0x03,(uint8_t*)&write_param[2],6);
-            write_param[3] = write_param[0];
-            write_param[4] = write_param[1];
-            write_param[5] = write_param[0] + STRING_XPOINT_SIZE;
-            write_param[6] = write_param[1] + STRING_YPOINT_SIZE;
-            write_param[8] = 0x0030; //字库位置
-            write_param[9] = 0x0C<<8|0x0C; //字体大小12*12
-            read_dgus_vp(string_sp_addr[index]+0x0b,(uint8_t*)&write_param[10],1);
-            write_param[10] = (write_param[10]&0x00ff) | 0x0200; //显示模式
-            write_dgus_vp(string_sp_addr[index]+0x01,(uint8_t*)&write_param[0],11);
-            write_dgus_vp(string_vp_addr[index],&frame[6],(len-12+1)>>1);
-        }
-    }else if(frame[1] == 0x6f)
-    {
-        /* 显示24*24 GB2312字符串，字库是54*/
-        write_param[0] = frame[2]<<8|frame[3];    //写入x坐标
-        write_param[1] = frame[4]<<8|frame[5];    //写入y坐标
-        index = FindNumberIsInArray(write_param[0],write_param[1],string_point_array,MAX_STRING_NUM);
-        if(index != 0xffff)
-        {
-            read_dgus_vp(string_sp_addr[index]+0x03,(uint8_t*)&write_param[2],6);
-            write_param[3] = write_param[0];
-            write_param[4] = write_param[1];
-            write_param[5] = write_param[0] + STRING_XPOINT_SIZE;
-            write_param[6] = write_param[1] + STRING_YPOINT_SIZE;
-            write_param[8] = 0x0036; //字库位置
-            write_param[9] = 0x18<<8|0x18; //字体大小24*24
-            read_dgus_vp(string_sp_addr[index]+0x0b,(uint8_t*)&write_param[10],1);
-            write_param[10] = (write_param[10]&0x00ff) | 0x0100; //显示模式
-            write_dgus_vp(string_sp_addr[index]+0x01,(uint8_t*)&write_param[0],11);
-            write_dgus_vp(string_vp_addr[index],&frame[6],(len-12+1)>>1);
-        }
-    }else if(frame[1] == 0x14)
-    {
-        write_param[0] = frame[9]<<8|frame[10];    //写入x坐标
-        write_param[1] = frame[11]<<8|frame[12];    //写入y坐标
-        write_param[2] = frame[3]<<8|frame[4];   //写入颜色
-        index = FindNumberIsInArray(write_param[0],write_param[1],number_point_array,MAX_STRING_NUM);
-        if(index != 0xffff)
-        {
-            read_dgus_vp(number_sp_addr[index]+0x04,(uint8_t*)&write_param[3],4);
-            number_mode = frame[2];
-            switch((number_mode&0x0f))
-            {
-                /**
-                 * 0=8*12 01=8*12 02=6*12 03=8*16 04=12*24
-                 * 05=16*32 06=20*40 07=24*48 08=28*56 09=32*64
-                 * 字库位置和字体大小
-                 */
-                case 0x00:write_param[3] = (0x0000|0x0008);break; 
-                case 0x01:write_param[3] = (0x0000|0x0008);break; 
-                case 0x02:write_param[3] = (0x0000|0x0006);break;
-                case 0x03:write_param[3] = (0x0000|0x0008);break;
-                case 0x04:write_param[3] = (0x0000|0x000C);break;
-                case 0x05:write_param[3] = (0x0000|0x0010);break;
-                case 0x06:write_param[3] = (0x0000|0x0014);break;
-                case 0x07:write_param[3] = (0x0000|0x0018);break;
-                case 0x08:write_param[3] = (0x0000|0x001C);break;
-                case 0x09:write_param[3] = (0x0000|0x0020);break;
-                default:write_param[3] = (0x0000|0x0008);break;
-            }
-            write_param[4] = (write_param[4]&0xff00) | frame[7];    //对齐方式和整数位置
+        case 0x82U:
+            TAHandleWriteNumber(frame, data_len);
+            break;
 
-            if(((write_param[5]&0x00ff) == 0x0000) || ((write_param[5]&0x00ff) == 0x0001)) //变量数据类型
-            {
-                if((number_mode&0x40)==0x00)
-                {
-                    write_param[5] = (frame[8]<<8) | ((write_param[5]+0x05)&0x00ff);
-                }else
-                {
-                    write_param[5] = (frame[8]<<8) | ((write_param[5])&0x00ff);
-                }
-            }else if(((write_param[5]&0x00ff) == 0x0005) || ((write_param[5]&0x00ff) == 0x0006))
-            {
-                if((number_mode&0x40)==0x40)
-                {
-                    write_param[5] = (frame[8]<<8) | ((write_param[5]-0x05)&0x00ff);
-                }else
-                {
-                    write_param[5] = (frame[8]<<8) | ((write_param[5])&0x00ff);
-                }
-            }
-            write_dgus_vp(number_sp_addr[index]+0x01,(uint8_t*)&write_param[0],6);
-            write_dgus_vp(number_vp_addr[index],&frame[13],(len-17)>>1);
-        }
-    }else if(frame[1] == 0xf0)   
-    {
-        /* 键值写入*/
-        write_dgus_vp((frame[2] << 8) | frame[3], &frame[4], (len-8) >> 1);
-        #if uartUART_82CMD_RETURN
-        i=0;
-        send_return_frame[i++] = 0xAA;
-        send_return_frame[i++] = 0xf1;  
-        send_return_frame[i++] = 0x4f;
-        send_return_frame[i++] = 0x4b;
-        if(crc_flag != 0)
-        {
-            crc16 = crc_16(&frame[0], 4);
-            send_return_frame[i++] = (uint8_t)crc16;
-            send_return_frame[i++] = crc16 >> 8;
-        }
-        send_return_frame[i++] = 0xcc;
-        send_return_frame[i++] = 0x33;
-        send_return_frame[i++] = 0xC3;
-        send_return_frame[i++] = 0x3C;
-        UartSendData(uart, send_return_frame, i);
-        #endif /* uartUART_82CMD_RETURN */
+        case 0x42U:
+            TAHandleWriteString(frame, data_len);
+            break;
 
-    }else if(frame[1] == 0xf1)   
-    {
-        /* 键值读取*/
-        read_dgus_vp((frame[2] << 8) | frame[3], &send_return_frame[5], frame[4] >> 0);
-        i=0;
-        send_return_frame[i++] = 0xAA;  
-        send_return_frame[i++] = 0xf1;
-        send_return_frame[i++] = frame[2];
-        send_return_frame[i++] = frame[3];
-        send_return_frame[i++] = frame[4] << 1;
-        if(crc_flag != 0)
-        {
-            crc16 = crc_16(&send_return_frame[0], send_return_frame[4] + 5);
-            send_return_frame[send_return_frame[4] + 5] = (uint8_t)crc16;
-            send_return_frame[send_return_frame[4] + 6] = crc16 >> 8;
-            i  = send_return_frame[4] + 7;
-        }else{
-            i  = send_return_frame[4] + 5;
-        }
-        send_return_frame[i++] = 0xcc;
-        send_return_frame[i++] = 0x33;
-        send_return_frame[i++] = 0xC3;
-        send_return_frame[i++] = 0x3C;
-        UartSendData(uart, send_return_frame, i);
+        case 0x31U:
+            break;
+
+        case 0x32U:
+            TAHandleReadPage(uart);
+            break;
+
+        case 0xE3U:
+            TAHandleUpgradeStart();
+            break;
+
+        case 0x93U:
+            TAHandleVersionRequest();
+            break;
+
+        case 0xEAU:
+            TAHandleForwardIpInfo(frame, data_len);
+            break;
+
+        case 0xE9U:
+            TAHandleForwardIpMode(frame, data_len);
+            break;
+
+        case 0x9BU:
+            TAHandleRtcRead(uart);
+            break;
+
+        case 0x9CU:
+            TAHandleRtcWrite(frame, data_len);
+            break;
+
+        case 0x70U:
+            if(data_len >= 7U)
+            {
+                page_id = ((uint16_t)frame[4] << 8) | frame[5];
+                SwitchPageById(page_id);
+            }
+            break;
+
+        case 0x83U:
+            TAHandleReadNumber(uart, frame, data_len);
+            break;
+
+        case 0x43U:
+            TAHandleReadString(uart, frame, data_len);
+            break;
+
+        default:
+            break;
     }
 }
 
 
-
+/**
+ * @brief C51 TA兼容自动上传任务
+ * @param uart 上传目标UART接口
+ * @note 读取0x0F00触发区，根据VP地址范围组装0x77上传帧。
+ */
 void TAProtocolUpload(UART_TYPE *uart)
 {
-    #define TA_TOUCH_UPLOAD_ADDR    0x0601
-    uint16_t tp_status[3],crc16,crc_flag,key_status;
-    uint8_t send_ta_data[20];
-    static uint16_t last_tp_status[3] = {0},old_key_status = 0;
-    read_dgus_vp(sysDGUS_TP_STATUS,(uint8_t*)&tp_status[0],3);
-    if(tp_status[0] != 0x5a02 && tp_status[0] != 0x5a03) return; //无触摸
-    read_dgus_vp(sysDGUS_SYSTEM_CONFIG,(uint8_t*)&crc_flag,1);
-    crc_flag = crc_flag & 0x0080;
-    if((tp_status[0] != last_tp_status[0])|| (tp_status[1] != last_tp_status[1]) || (tp_status[2] != last_tp_status[2]))
+    uint8_t auto_load_arr[4];
+    uint8_t zero_arr[4] = {0};
+    uint8_t send_auto[TA_SEND_BUF_SIZE];
+    uint16_t auto_vp;
+    uint16_t nlen;
+    uint16_t data_bytes;
+    uint16_t total_len;
+    uint16_t i;
+
+    memset(auto_load_arr, 0, sizeof(auto_load_arr));
+    read_dgus_vp(TA_AUTO_UPLOAD_ADDR, auto_load_arr, 2);
+    if(auto_load_arr[0] != 0x5AU)
     {
-        last_tp_status[0] = tp_status[0];
-        last_tp_status[1] = tp_status[1];
-        last_tp_status[2] = tp_status[2];
-        send_ta_data[0] = 0xAA;
-        send_ta_data[1] = (tp_status[0] -0x5a02) + 0x72;
-        send_ta_data[2] = tp_status[1]>>8;
-        send_ta_data[3] = tp_status[1]&0x00ff;
-        send_ta_data[4] = tp_status[2]>>8;
-        send_ta_data[5] = tp_status[2]&0x00ff;
-        if(crc_flag != 0)
-        {
-            crc16 = crc_16(send_ta_data,6);
-            send_ta_data[6] = crc16 >> 8;
-            send_ta_data[7] = crc16 & 0x00ff;
-            send_ta_data[8] = 0xCC;
-            send_ta_data[9] = 0x33;
-            send_ta_data[10] = 0xC3;
-            send_ta_data[11] = 0x3C;
-            UartSendData(uart,send_ta_data,12);
-        }else{
-            send_ta_data[6] = 0xCC;
-            send_ta_data[7] = 0x33;
-            send_ta_data[8] = 0xC3;
-            send_ta_data[9] = 0x3C;
-            UartSendData(uart,send_ta_data,10);
-        }
+        return;
     }
-    read_dgus_vp(TA_TOUCH_UPLOAD_ADDR, (uint8_t*)&key_status, 1);
-    if(key_status != 0 && key_status != old_key_status)
+
+    write_dgus_vp(TA_AUTO_UPLOAD_ADDR, zero_arr, 2);
+
+    auto_vp = ((uint16_t)auto_load_arr[1] << 8) | auto_load_arr[2];
+    nlen = auto_load_arr[3];
+    if(nlen == 0U)
     {
-        old_key_status = key_status;
-        send_ta_data[0] = 0xAA;
-        send_ta_data[1] = 0x79;
-        send_ta_data[2] = 0x00;
-        send_ta_data[3] = 0x00;
-        send_ta_data[4] = key_status << 8;
-        send_ta_data[5] = key_status & 0x00ff;
-        if(crc_flag != 0)
-        {
-            crc16 = crc_16(send_ta_data,6);
-            send_ta_data[6] = crc16 >> 8;
-            send_ta_data[7] = crc16 & 0x00ff;
-            send_ta_data[8] = 0xCC;
-            send_ta_data[9] = 0x33;
-            send_ta_data[10] = 0xC3;
-            send_ta_data[11] = 0x3C;
-            UartSendData(uart,send_ta_data,12);
-        }else{
-            send_ta_data[6] = 0xCC;
-            send_ta_data[7] = 0x33;
-            send_ta_data[8] = 0xC3;
-            send_ta_data[9] = 0x3C;
-            UartSendData(uart,send_ta_data,10);
-        }
+        return;
     }
-    if(tp_status[0] == 0x5a02)
+
+    memset(send_auto, 0, sizeof(send_auto));
+    send_auto[0] = TA_FRAME_HEAD;
+    send_auto[3] = 0x77U;
+
+    if((auto_vp >= 0x5000U) && (auto_vp < 0xB000U))
     {
-        read_dgus_vp(TA_TOUCH_UPLOAD_ADDR, (uint8_t*)&key_status, 1);
-        if(key_status != 0)
+        /* 字符串区上传到遇到0x00或0xFF为止，与C51 AutoUrat2保持一致。 */
+        data_bytes = nlen << 1;
+        if((data_bytes + 14U) > TA_SEND_BUF_SIZE)
         {
-            send_ta_data[0] = 0xAA;
-            send_ta_data[1] = 0x78;
-            send_ta_data[2] = 0x00;
-            send_ta_data[3] = 0x00;
-            if(crc_flag != 0)
+            return;
+        }
+
+        read_dgus_vp(auto_vp, &send_auto[8], (uint8_t)nlen);
+        for(i = 0U; i < data_bytes; i++)
+        {
+            if((send_auto[8U + i] == 0xFFU) || (send_auto[8U + i] == 0x00U))
             {
-                crc16 = crc_16(send_ta_data,6);
-                send_ta_data[6] = crc16 >> 8;
-                send_ta_data[7] = crc16 & 0x00ff;
-                send_ta_data[8] = 0xCC;
-                send_ta_data[9] = 0x33;
-                send_ta_data[10] = 0xC3;
-                send_ta_data[11] = 0x3C;
-                UartSendData(uart,send_ta_data,12);
-            }else{
-                send_ta_data[6] = 0xCC;
-                send_ta_data[7] = 0x33;
-                send_ta_data[8] = 0xC3;
-                send_ta_data[9] = 0x3C;
-                UartSendData(uart,send_ta_data,10);
+                send_auto[1] = (uint8_t)((i + 11U) >> 8);
+                send_auto[2] = (uint8_t)(i + 11U);
+                send_auto[5] = 0x00U;
+                send_auto[6] = (uint8_t)((auto_vp - 0x5000U) >> 8);
+                send_auto[7] = (uint8_t)(auto_vp - 0x5000U);
+                send_auto[8U + i] = 0x00U;
+                send_auto[9U + i] = 0x00U;
+                TASetTail(send_auto, 10U + i);
+                TASendData(uart, send_auto, 14U + i);
+                break;
             }
-            key_status = 0;
-            write_dgus_vp(TA_TOUCH_UPLOAD_ADDR, (uint8_t*)&key_status, 1);
         }
     }
+    else if((auto_vp >= 0x1000U) && (auto_vp < 0x5000U))
+    {
+        data_bytes = nlen << 1;
+        total_len = 12U + data_bytes;
+        if(total_len > TA_SEND_BUF_SIZE)
+        {
+            return;
+        }
 
+        send_auto[1] = (uint8_t)((data_bytes + 9U) >> 8);
+        send_auto[2] = (uint8_t)(data_bytes + 9U);
+        send_auto[5] = 0x08U;
+        send_auto[6] = (uint8_t)((auto_vp - 0x1000U) >> 8);
+        send_auto[7] = (uint8_t)(auto_vp - 0x1000U);
+        read_dgus_vp(auto_vp, &send_auto[8], (uint8_t)((nlen + 1U) >> 1));
+        TASetTail(send_auto, 8U + data_bytes);
+        TASendData(uart, send_auto, total_len);
+    }
+    else if(auto_vp >= 0xB000U)
+    {
+        data_bytes = nlen << 1;
+        total_len = 12U + data_bytes;
+        if(total_len > TA_SEND_BUF_SIZE)
+        {
+            return;
+        }
 
+        send_auto[1] = (uint8_t)((data_bytes + 9U) >> 8);
+        send_auto[2] = (uint8_t)(data_bytes + 9U);
+        send_auto[5] = 0x02U;
+        send_auto[6] = (uint8_t)((auto_vp - 0xB000U) >> 8);
+        send_auto[7] = (uint8_t)(auto_vp - 0xB000U);
+        read_dgus_vp(auto_vp, &send_auto[8], (uint8_t)((nlen + 1U) >> 1));
+        TASetTail(send_auto, 8U + data_bytes);
+        TASendData(uart, send_auto, total_len);
+    }
 }
+
 #endif /* uartTA_PROTOCOL_ENABLED */

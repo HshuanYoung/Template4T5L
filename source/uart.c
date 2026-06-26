@@ -655,6 +655,9 @@ void UartReadFrame(UART_TYPE *uart)
 {
     uint8_t frame[uartUART_COMMON_FRAME_SIZE];
     uint16_t i,rx_head_bak,one_frame_len,total_frame_len,frame_offset;
+    #if uartTA_PROTOCOL_ENABLED
+    uint16_t ta_raw_len,ta_frame_len,ta_tail_offset;
+    #endif /* uartTA_PROTOCOL_ENABLED */
     if(uart->RxFlag == UART_NON_REC)
         return;
     if(uart->RxTimeout == 0)
@@ -810,26 +813,52 @@ void UartReadFrame(UART_TYPE *uart)
             #if uartTA_PROTOCOL_ENABLED
             else if(frame[frame_offset] == 0xAA)
             {
+                /* C51 TA协议：AA lenH lenL cmd payload CC 33 C3 3C */
+                if(i < 7U)
+                {
+                    break;
+                }
 
-                if(i<6)
+                ta_raw_len = ((uint16_t)frame[frame_offset + 1] << 8) | frame[frame_offset + 2];
+                if(frame[frame_offset + 3] == 0x42U)
                 {
-                    break;
-                }
-                for(one_frame_len = 0;one_frame_len<(i-3);one_frame_len++)
-                {
-                    if(frame[frame_offset + one_frame_len] == 0xcc && frame[frame_offset + one_frame_len + 1] == 0x33
-                    && frame[frame_offset + one_frame_len + 2] == 0xc3 && frame[frame_offset + one_frame_len + 3] == 0x3c)
+                    /* 0x42写字符串命令沿用C51工程的len+5总长度规则。 */
+                    if(ta_raw_len > (uint16_t)(uartUART_COMMON_FRAME_SIZE - 5U))
                     {
-                        break;
+                        i--;
+                        continue;
                     }
+                    ta_frame_len = ta_raw_len + 5U;
                 }
-                if(one_frame_len == (i-3))
+                else
+                {
+                    if(ta_raw_len > (uint16_t)(uartUART_COMMON_FRAME_SIZE - 3U))
+                    {
+                        i--;
+                        continue;
+                    }
+                    ta_frame_len = ta_raw_len + 3U;
+                }
+
+                if(i < ta_frame_len)
                 {
                     break;
                 }
-                /* 加上帧尾 cc 33 c3 3c*/
-                UartStandardTAProtocol(uart, &frame[frame_offset], one_frame_len+4);
-                i -= (one_frame_len+4);
+
+                ta_tail_offset = ta_frame_len - 4U;
+                /* 帧尾不匹配时只丢弃当前0xAA，继续扫描后续潜在帧头。 */
+                if((frame[frame_offset + ta_tail_offset] == 0xCCU) &&
+                   (frame[frame_offset + ta_tail_offset + 1U] == 0x33U) &&
+                   (frame[frame_offset + ta_tail_offset + 2U] == 0xC3U) &&
+                   (frame[frame_offset + ta_tail_offset + 3U] == 0x3CU))
+                {
+                    UartStandardTAProtocol(uart, &frame[frame_offset], ta_frame_len);
+                    i -= ta_frame_len;
+                }
+                else
+                {
+                    i--;
+                }
             }
             #endif /* uartTA_PROTOCOL_ENABLED */
             else
