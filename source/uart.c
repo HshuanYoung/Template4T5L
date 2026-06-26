@@ -856,6 +856,5 @@ void UartProtocalHandleTask(void)
     #if uartTA_PROTOCOL_ENABLED
     TAProtocolUpload(&Uart2);
     #endif /* uartTA_PROTOCOL_ENABLED */
-    UartReadFrame(&Uart5);
 }
 

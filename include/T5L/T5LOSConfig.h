@@ -112,7 +112,7 @@ typedef            long			int32_t;
  * @warning 打开这个宏后需要去startup文件中配置R11模块,禁用时需要关闭配置R11模块以使用外部中断0
  * @warning 广告屏美容屏和模拟摄像头开关互斥，注意只能打开一个
  */
-#define sysADVERTISE_MODE_ENABLED       1
+#define sysADVERTISE_MODE_ENABLED       0
 #define sysN5CAMERA_MODE_ENABLED       0
 #define sysBEAUTY_MODE_ENABLED         0
 
@@ -147,7 +147,7 @@ extern uint32_t sysFCLK;
  * @brief 2k分辨率模式
  * @details 1: 1920*1080分辨率屏幕, 0: 其他
  */
-#define sys2K_RATIO                  1
+#define sys2K_RATIO                  0
 
 #if sys2K_RATIO
 /**
@@ -169,8 +169,8 @@ extern uint32_t sysFCLK;
 #define sysTEST_ENABLED                 1        /**< 测试模式使能标志 */
 
 
-#define uartTA_PROTOCOL_ENABLED          0
-#define sysDGUS_AUTO_UPLOAD_ENABLED      1      /**< 自动上传使能标志 */
+#define uartTA_PROTOCOL_ENABLED          1
+#define sysDGUS_AUTO_UPLOAD_ENABLED      0      /**< 自动上传使能标志 */
 #if sysDGUS_AUTO_UPLOAD_ENABLED || uartTA_PROTOCOL_ENABLED
 #define sysDGUS_AUTO_UPLOAD_VP_ADDR            0x0f00
 #define sysDGUS_AUTO_UPLOAD_LEN                 40
@@ -186,7 +186,7 @@ extern uint32_t sysFCLK;
  * @brief OTA升级功能配置
  * @details OTA通过Uart_R11接收AB CD协议帧，将升级文件下载到NAND Flash后触发Boot升级。
  */
-#define otaOTA_ENABLED                 1              /**< OTA升级功能使能标志 */
+#define otaOTA_ENABLED                 0              /**< OTA升级功能使能标志 */
 #define otaCRC32_CHECK_ENABLED         1              /**< OTA整文件CRC32校验使能标志 */
 #define otaDEBUG_ENABLED               0              /**< OTA调试输出使能标志，当前默认关闭 */
 #define otaTASK_INTERVAL               2              /**< OTA周期任务执行间隔，单位为系统任务节拍 */
