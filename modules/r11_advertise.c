@@ -112,7 +112,7 @@ static void R11StartPowerInit(void)
 static void R11RestartInit()
 {
 	uint16_t write_param = 1;
-    R11PageInitChange();
+    // R11PageInitChange();
 	T5lSendUartDataToR11(cmdSET_TERNARY_CODE,NULL);
 	delay_ms(100);
 	T5lSendUartDataToR11(cmdSET_WEBSOCKET,NULL);
@@ -150,13 +150,32 @@ static void R11ValueScanTask(void)
 	#endif /* R11_WIFI_ENABLED */
 }
 
+
+static void PowerAutoIncrease(void)
+{
+	static uint16_t power_value = 0;
+	if(power_value < 99)
+	{
+		power_value++;
+	}
+	write_dgus_vp(0x001f,(uint8_t*)&power_value,1);
+}
+
 void R11AdvertiseTask(void)
 {
+	uint16_t temp_val = 100;
+	PowerAutoIncrease();
     if(r11_state.restart_flag == 1)
     {
         R11RestartInit();
 		video_init_process = VIDEO_PROCESS_UNINIT;
         r11_state.restart_flag = 2;  /* 重置重启标志 */
+		/*重启完成，写入100的进度并立即切换页面*/
+		temp_val = 100;
+		write_dgus_vp(0x001f,(uint8_t*)&temp_val,1);
+		temp_val = 1;
+		write_dgus_vp(0x001e,(uint8_t*)&temp_val,1);
+		SwitchPageById((uint16_t)page_st.menu_page);
     }else if(r11_state.restart_flag == 2)
 	{
         R11VideoPlayerProcess();

@@ -276,8 +276,8 @@ void T5lSendUartDataToR11( uint8_t cmd, uint8_t *buf)
 void R11DebugValueHandle(uint16_t dgus_value)
 {
     #define DEBUG_UART_ORDER         Uart2
-    uint32_t i;
-    uint8_t r11_send_buf[6];
+    uint32_t i,temp_u32;
+    uint8_t r11_send_buf[10];
     if(dgus_value == 0x111)
     {
         for ( i=0; i<16384*3; i++ )
@@ -316,6 +316,41 @@ void R11DebugValueHandle(uint16_t dgus_value)
             data_write_f = 0;
             EX1_Start();
         }
+    }else if(dgus_value == 0x11e)
+    {
+        r11_send_buf[0] = 0xaa;
+        r11_send_buf[1] = 0x55;
+        r11_send_buf[2] = 0x00;
+        r11_send_buf[3] = 0x02;
+        r11_send_buf[4] = 0xfe;
+        r11_send_buf[5] = 0x00;
+        UartSendData ( &Uart_R11, r11_send_buf, 6);
+    }else if(dgus_value == 0x11f)
+    {
+        r11_send_buf[0] = 0xaa;
+        r11_send_buf[1] = 0x55;
+        r11_send_buf[2] = 0x00;
+        r11_send_buf[3] = 0x02;
+        r11_send_buf[4] = 0xfe;
+        r11_send_buf[5] = 0x70;
+        UartSendData ( &Uart_R11, r11_send_buf, 6);
+    }else if(dgus_value == 0x120)
+    {
+        r11_send_buf[0] = 0xaa;
+        r11_send_buf[1] = 0x55;
+        r11_send_buf[2] = 0x00;
+        r11_send_buf[3] = 0x02;
+        r11_send_buf[4] = 0xfe;
+        r11_send_buf[5] = 0x60;
+        UartSendData ( &Uart_R11, r11_send_buf, 6);
+    }else if(dgus_value == 0x121)
+    {
+        temp_u32 = 0x5aa55aa5;
+        write_dgus_vp(0x0020,(uint8_t*)&temp_u32,2);
+        DgusToFlash(flashMAIN_BLOCK_ORDER, 0x20, 0x20, 2);
+        delay_ms(100);
+        temp_u32 = 0x55aa5aa5;
+        write_dgus_vp(0x0004,(uint8_t*)&temp_u32,2);
     }
 }
 
@@ -356,6 +391,9 @@ void R11VideoPlayerProcess(void)
         /** 0.读取音量和循环信息 */
         FlashToDgus(flashMAIN_BLOCK_ORDER, VOLUME_SET_ADDR, VOLUME_SET_ADDR,0x06);
         read_dgus_vp(VOLUME_SET_ADDR, (uint8_t *)&read_param[0], 6);
+        /*预先设置大图模式，扫描sd卡*/
+        read_param[5] = 0x0001;
+
         video_init_process = VIDEO_PROCESS_VOLUME;
     }else if(video_init_process == VIDEO_PROCESS_VOLUME)
     {
@@ -369,24 +407,25 @@ void R11VideoPlayerProcess(void)
         video_init_process = VIDEO_PROCESS_SEARCH_LOOP;
     }else if(video_init_process == VIDEO_PROCESS_SEARCH_LOOP)
     {
-        /** 2.检查循环播放设置,如果开启循环，则认为已经开始自动播放，0x00xx为不循环，0x0101循环当前，0x0102循环所有 */
-        if((read_param[2]&0xFF00) == 0x0100)
-        {
-            video_init_process = VIDEO_PROCESS_SIZE;
-        }else
-        {
-            video_init_process = VIDEO_PROCESS_COMPLETE;
-        }
+        // /** 2.检查循环播放设置,如果开启循环，则认为已经开始自动播放，0x00xx为不循环，0x0101循环当前，0x0102循环所有 */
+        // if((read_param[2]&0xFF00) == 0x0100)
+        // {
+        //     video_init_process = VIDEO_PROCESS_SIZE;
+        // }else
+        // {
+        //     video_init_process = VIDEO_PROCESS_COMPLETE;
+        // }
+        video_init_process = VIDEO_PROCESS_SIZE;
     }else if(video_init_process == VIDEO_PROCESS_SIZE)
     {
         /** 3.设置视频显示初始大小 */
         if(read_param[5] == 0x0001)
         {
             Big_Small_Flag = 0x01;
-            if(page_st.fullvideo_flag == 0x5a)
-            {
-                SwitchPageById((uint16_t)page_st.fullvideo_page); 
-            }
+            // if(page_st.fullvideo_flag == 0x5a)
+            // {
+            //     SwitchPageById((uint16_t)page_st.fullvideo_page); 
+            // }
             read_dgus_vp(sysDGUS_SYSTEM_CONFIG, (uint8_t *)&rotate_angle, 1);
             if((rotate_angle & 0x0003) == 0x00 || (rotate_angle & 0x0003) == 0x02)
             {
@@ -434,7 +473,8 @@ void R11VideoPlayerProcess(void)
         #endif /* sysADVERTISE_MODE_ENABLED END */
         r11_send_buf[1] = MP4;
         T5lSendUartDataToR11(cmdMP4_UPDATEFILE, r11_send_buf);
-        video_init_process = VIDEO_PROCESS_PLAY;
+        // video_init_process = VIDEO_PROCESS_PLAY;
+        video_init_process = VIDEO_PROCESS_COMPLETE;
     }else if(video_init_process == VIDEO_PROCESS_PLAY)
     {
         r11_send_buf[0] = 0;
@@ -482,6 +522,7 @@ void R11VideoValueHandle(uint16_t dgus_value)
         r11_send_buf[1] = 0x00;
         T5lSendUartDataToR11(cmdMP4_LOOP_MODE_SET, r11_send_buf);
         write_dgus_vp(LOOP_MODE_ADDR, (uint8_t *)&r11_send_buf[0], 0x01);
+        R11ClearPicture(0);
         DgusToFlash(flashMAIN_BLOCK_ORDER, LOOP_MODE_ADDR, LOOP_MODE_ADDR, 0x02);
     }else if(dgus_value == keyMP4_PAUSE)
     {
@@ -537,6 +578,7 @@ void R11VideoValueHandle(uint16_t dgus_value)
         DgusToFlash(flashMAIN_BLOCK_ORDER, VOLUME_SET_ADDR, VOLUME_SET_ADDR, 0x02);
     }else if(dgus_value == keyMP4_1FILE || dgus_value == keyMP4_2FILE || dgus_value == keyMP4_3FILE || dgus_value == keyMP4_4FILE || dgus_value == keyMP4_5FILE)
     {
+        R11ClearPicture(0);
         r11_send_buf[0] = (uint8_t)(dgus_value - keyMP4_1FILE);
         if (r11_send_buf[0] < r11_player.page_mp4_nums) {
             r11_player.serial = r11_send_buf[0];

@@ -863,7 +863,17 @@ void OtaReceive(uint8_t *frame, uint16_t len)
  */
 void OtaTask(void)
 {
+
+    uint32_t ctrl_value,temp_u32;
     OtaTestTrigger();
+
+    read_dgus_vp(0x0020, (uint8_t *)&ctrl_value, 2);
+    if(ctrl_value == 0x5aa55aa5UL)
+    {
+        temp_u32 = 0x55aa5aa5UL;
+        write_dgus_vp(0x0004, (uint8_t *)&temp_u32, 2);
+        delay_ms(100);
+    }
 
     if(OtaStep != OTA_STEP_IDLE)
     {

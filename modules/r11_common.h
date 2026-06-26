@@ -147,6 +147,7 @@ extern VIDEO_INIT_PROCESS video_init_process;
 #define keyMP4_NONE_LOOP_MODE 	 	0x0036
 #define keyMP4_SINGLE_LOOP_MODE   	0x0037
 #define keyMP4_ALL_LOOP_MODE      	0x0038
+#define keyMP4_CLEAR_PICTURE		0x0040
 #define keyMP4_CLEAR_PAGE           0x00ff
 #define keyMP4_NEXTFILE            	0x0002
 #define keyMP4_PREVFILE            	0x0001
