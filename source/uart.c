@@ -813,7 +813,7 @@ void UartReadFrame(UART_TYPE *uart)
             #if uartTA_PROTOCOL_ENABLED
             else if(frame[frame_offset] == 0xAA)
             {
-                /* C51 TA协议：AA lenH lenL cmd payload CC 33 C3 3C */
+                /* C51 TA协议：AA lenH lenL cmd payload CC 33 3C C3 */
                 if(i < 7U)
                 {
                     break;
@@ -849,8 +849,8 @@ void UartReadFrame(UART_TYPE *uart)
                 /* 帧尾不匹配时只丢弃当前0xAA，继续扫描后续潜在帧头。 */
                 if((frame[frame_offset + ta_tail_offset] == 0xCCU) &&
                    (frame[frame_offset + ta_tail_offset + 1U] == 0x33U) &&
-                   (frame[frame_offset + ta_tail_offset + 2U] == 0xC3U) &&
-                   (frame[frame_offset + ta_tail_offset + 3U] == 0x3CU))
+                   (frame[frame_offset + ta_tail_offset + 2U] == 0x3CU) &&
+                   (frame[frame_offset + ta_tail_offset + 3U] == 0xC3U))
                 {
                     UartStandardTAProtocol(uart, &frame[frame_offset], ta_frame_len);
                     i -= ta_frame_len;

@@ -7,7 +7,7 @@
  * @file    TA_protocal.c
  * @brief   C51 TA兼容串口协议处理
  * @details 本文件移植自C51工程的Uart2WaterReadFrame协议，
- *          帧格式为AA + 2字节长度 + 命令 + 数据 + CC 33 C3 3C。
+ *          帧格式为AA + 2字节长度 + 命令 + 数据 + CC 33 3C C3。
  */
 
 #if uartTA_PROTOCOL_ENABLED
@@ -16,8 +16,8 @@
 #define TA_FRAME_HEAD              0xAAU
 #define TA_FRAME_TAIL0             0xCCU
 #define TA_FRAME_TAIL1             0x33U
-#define TA_FRAME_TAIL2             0xC3U
-#define TA_FRAME_TAIL3             0x3CU
+#define TA_FRAME_TAIL2             0x3CU
+#define TA_FRAME_TAIL3             0xC3U
 
 #define TA_SEND_BUF_SIZE           256U
 #define TA_STRING_CLEAR_WORDS      0x80U
@@ -192,9 +192,9 @@ static uint8_t TAFrameIsValid(uint8_t *frame, uint16_t len, uint16_t *data_len)
 
 
 /**
- * @brief 将C51数值区类型映射到DGUS VP地址
+ * @brief 将C51数值区类型和字节偏移映射到DGUS VP地址
  * @param addr_type C51地址类型
- * @param offset C51地址偏移
+ * @param offset C51协议字节偏移，换算VP前先除以2
  * @param addr 输出DGUS VP地址
  * @return 1=映射成功，0=未知类型
  */
@@ -205,6 +205,7 @@ static uint8_t TAGetNumberAddr(uint8_t addr_type, uint16_t offset, uint32_t *add
         return 0U;
     }
 
+    offset >>= 1;
     if(addr_type == 0x08U)
     {
         *addr = 0x1000UL + offset;
@@ -309,6 +310,7 @@ static void TAHandleWriteString(uint8_t *frame, uint16_t data_len)
     }
 
     offset = ((uint16_t)frame[6] << 8) | frame[7];
+    offset >>= 1;
     data_addr = 0x5000UL + offset;
     write_words = (data_len - 9U) >> 1;
 
@@ -444,6 +446,7 @@ static void TAHandleReadString(UART_TYPE *uart, uint8_t *frame, uint16_t data_le
         return;
     }
 
+    offset >>= 1;
     data_addr = 0x5000UL + offset;
     read_bytes = frame[8];
     read_words = read_bytes >> 1;
@@ -718,6 +721,7 @@ void TAProtocolUpload(UART_TYPE *uart)
     uint16_t nlen;
     uint16_t data_bytes;
     uint16_t total_len;
+    uint16_t protocol_offset;
     uint16_t i;
 
     memset(auto_load_arr, 0, sizeof(auto_load_arr));
@@ -757,8 +761,9 @@ void TAProtocolUpload(UART_TYPE *uart)
                 send_auto[1] = (uint8_t)((i + 11U) >> 8);
                 send_auto[2] = (uint8_t)(i + 11U);
                 send_auto[5] = 0x00U;
-                send_auto[6] = (uint8_t)((auto_vp - 0x5000U) >> 8);
-                send_auto[7] = (uint8_t)(auto_vp - 0x5000U);
+                protocol_offset = (uint16_t)((auto_vp - 0x5000U) << 1);
+                send_auto[6] = (uint8_t)(protocol_offset >> 8);
+                send_auto[7] = (uint8_t)protocol_offset;
                 send_auto[8U + i] = 0x00U;
                 send_auto[9U + i] = 0x00U;
                 TASetTail(send_auto, 10U + i);
@@ -779,8 +784,9 @@ void TAProtocolUpload(UART_TYPE *uart)
         send_auto[1] = (uint8_t)((data_bytes + 9U) >> 8);
         send_auto[2] = (uint8_t)(data_bytes + 9U);
         send_auto[5] = 0x08U;
-        send_auto[6] = (uint8_t)((auto_vp - 0x1000U) >> 8);
-        send_auto[7] = (uint8_t)(auto_vp - 0x1000U);
+        protocol_offset = (uint16_t)((auto_vp - 0x1000U) << 1);
+        send_auto[6] = (uint8_t)(protocol_offset >> 8);
+        send_auto[7] = (uint8_t)protocol_offset;
         read_dgus_vp(auto_vp, &send_auto[8], (uint8_t)((nlen + 1U) >> 1));
         TASetTail(send_auto, 8U + data_bytes);
         TASendData(uart, send_auto, total_len);
@@ -797,8 +803,9 @@ void TAProtocolUpload(UART_TYPE *uart)
         send_auto[1] = (uint8_t)((data_bytes + 9U) >> 8);
         send_auto[2] = (uint8_t)(data_bytes + 9U);
         send_auto[5] = 0x02U;
-        send_auto[6] = (uint8_t)((auto_vp - 0xB000U) >> 8);
-        send_auto[7] = (uint8_t)(auto_vp - 0xB000U);
+        protocol_offset = (uint16_t)((auto_vp - 0xB000U) << 1);
+        send_auto[6] = (uint8_t)(protocol_offset >> 8);
+        send_auto[7] = (uint8_t)protocol_offset;
         read_dgus_vp(auto_vp, &send_auto[8], (uint8_t)((nlen + 1U) >> 1));
         TASetTail(send_auto, 8U + data_bytes);
         TASendData(uart, send_auto, total_len);
