@@ -7,7 +7,7 @@
  * @file    TA_protocal.c
  * @brief   C51 TA兼容串口协议处理
  * @details 本文件移植自C51工程的Uart2WaterReadFrame协议，
- *          帧格式为AA + 2字节长度 + 命令 + 数据 + CC 33 3C C3。
+ *          帧格式为AA + 2字节长度 + 命令 + 数据 + CC 33 C3 3C。
  */
 
 #if uartTA_PROTOCOL_ENABLED
@@ -16,8 +16,8 @@
 #define TA_FRAME_HEAD              0xAAU
 #define TA_FRAME_TAIL0             0xCCU
 #define TA_FRAME_TAIL1             0x33U
-#define TA_FRAME_TAIL2             0x3CU
-#define TA_FRAME_TAIL3             0xC3U
+#define TA_FRAME_TAIL2             0xC3U
+#define TA_FRAME_TAIL3             0x3CU
 
 #define TA_SEND_BUF_SIZE           256U
 #define TA_STRING_CLEAR_WORDS      0x80U
