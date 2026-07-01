@@ -118,17 +118,45 @@ static void RtcGetTime(uint8_t *prtc_get,uint8_t *prtc_out)
 
 /* RX-8130 RTC芯片驱动实现 */
 #ifdef rtcRX_8130
+#define rtcRX_8130_EXTENSION_REG_VALUE      0x48U
+#define rtcRX_8130_FLAG_CLEAR_VALUE         0x00U
+#define rtcRX_8130_CONTROL_STOP_VALUE       0x40U
+#define rtcRX_8130_CONTROL_RUN_VALUE        0x00U
+/* Control1: CHGEN(bit5) + INIEN(bit4), or only INIEN for primary battery. */
+#if rtcRX_8130_BACKUP_CHARGE_ENABLED
+#define rtcRX_8130_CONTROL1_BACKUP_VALUE    0x30U
+#else
+#define rtcRX_8130_CONTROL1_BACKUP_VALUE    0x10U
+#endif
+
+
+static void RtcRx8130WriteControl(uint8_t control0)
+{
+    uint8_t write_param[2];
+
+    write_param[0] = control0;
+    write_param[1] = rtcRX_8130_CONTROL1_BACKUP_VALUE;
+    I2cWriteMultipleBytes(0x1e, write_param, 2);
+}
+
+
+static void RtcRx8130WriteBackupControl(void)
+{
+    I2cWriteSingleByte(0x1f, rtcRX_8130_CONTROL1_BACKUP_VALUE);
+}
+
+
 void RtcSetTime(uint8_t *prtc_set)
 {
     uint8_t write_param[7];
     uint8_t week;
 
     week = RtcCalcWeek(prtc_set);
-    I2cWriteSingleByte(0x30, 0x00); 
-    write_param[0] = 0x48; 
-    write_param[1] = 0x00;
-    write_param[2] = 0x40;
-    write_param[3] = 0x10;
+    I2cWriteSingleByte(0x30, 0x00);
+    write_param[0] = rtcRX_8130_EXTENSION_REG_VALUE;
+    write_param[1] = rtcRX_8130_FLAG_CLEAR_VALUE;
+    write_param[2] = rtcRX_8130_CONTROL_STOP_VALUE;
+    write_param[3] = rtcRX_8130_CONTROL1_BACKUP_VALUE;
     I2cWriteMultipleBytes(0x1c, write_param, 4);
     write_param[0] = rtcHEX_2_BCD(prtc_set[6]);
     write_param[1] = rtcHEX_2_BCD(prtc_set[5]);
@@ -138,9 +166,7 @@ void RtcSetTime(uint8_t *prtc_set)
     write_param[5] = rtcHEX_2_BCD(prtc_set[1]);
     write_param[6] = rtcHEX_2_BCD(prtc_set[0]);
     I2cWriteMultipleBytes(0x10, write_param, 7);
-    write_param[0] = 0x00;
-    write_param[1] = 0x10;
-    I2cWriteMultipleBytes(0x1e, write_param, 2);
+    RtcRx8130WriteControl(rtcRX_8130_CONTROL_RUN_VALUE);
 }
 
 
@@ -149,6 +175,7 @@ void RtcInit(void)
     uint8_t data reset_status;
     uint8_t write_param[7] = {20U, 1U, 1U, 0U, 0U, 0U, 0U};
     GPIO_BYTE_SET_OUT(i2cGPIO_SFR_PORTMDOUT, (1 << i2cSDA_GPIO_PIN) | (1 << i2cSCL_GPIO_PIN));
+    RtcRx8130WriteBackupControl();
     reset_status = I2cReadSingleByte(0x1d);
     if((reset_status & 0x02) == 0x02)
     {
