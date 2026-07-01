@@ -122,12 +122,8 @@ static void RtcGetTime(uint8_t *prtc_get,uint8_t *prtc_out)
 #define rtcRX_8130_FLAG_CLEAR_VALUE         0x00U
 #define rtcRX_8130_CONTROL_STOP_VALUE       0x40U
 #define rtcRX_8130_CONTROL_RUN_VALUE        0x00U
-/* Control1: CHGEN(bit5) + INIEN(bit4), or only INIEN for primary battery. */
-#if rtcRX_8130_BACKUP_CHARGE_ENABLED
-#define rtcRX_8130_CONTROL1_BACKUP_VALUE    0x30U
-#else
+/* Control1: INIEN(bit4)=1, CHGEN(bit5)=0, same as the verified reference driver. */
 #define rtcRX_8130_CONTROL1_BACKUP_VALUE    0x10U
-#endif
 
 
 static void RtcRx8130WriteControl(uint8_t control0)

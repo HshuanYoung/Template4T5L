@@ -19,12 +19,6 @@
 #define rtcRX_8130
 //#define rtcSD_2058
 
-/**
- * @brief RX8130备份电源充电使能
- * @details 使用可充电备份电池或超级电容时置1；使用不可充电纽扣电池时必须置0
- */
-#define rtcRX_8130_BACKUP_CHARGE_ENABLED    1
-
 #include "sys.h"
 
 #if defined(rtcRX_8130) || defined(rtcSD_2058)
